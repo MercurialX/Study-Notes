@@ -26,16 +26,17 @@ git checkout -b dev-x                               // 创建并切换到分支d
 git add .                                           // 修改添加到缓存区
 git commit -a                                       // 缓存区修改提交到版本库
 git checkout master                                 // 切回主分支
-git pull --rebase                                   // 获取远程库最新代码
+git pull                                            // 获取远程库最新代码
 git checkout dev-x                                  // 切换到工作分支
-git merge master                                    // 合并到master分支
+git rebase master                                   // 更新分支
 ----------------
 git add .
 git rebase --continue                               // 假如有冲突解决冲突
 git rebase --skip
 ----------------
-git push (-u) origin master                         // 提交到远程库 初次-u
 git checkout master                                 // 切回主分支
+git merge dev-x                                     // 合并dev-x分支
+git push (-u) origin master                         // 提交到远程库 初次-u
 git branch -d dev-x                                 // 删除本地dev-x分支
 ```
 
