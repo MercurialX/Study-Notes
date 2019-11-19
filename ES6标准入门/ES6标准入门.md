@@ -15,6 +15,7 @@ for(var i = 0; i < 10; i ++) {
         console.log(i);
     };
 }
+
 a[6](); // 10
 
 ---
@@ -24,6 +25,7 @@ for(let i = 0; i < 10; i ++) {
         console.log(i);
     };
 }
+
 a[6](); // 6
 ```
 
@@ -81,6 +83,7 @@ let y = y; // ReferenceError报错
 function func(arg) {
     let arg = 1;
 }
+
 func('a'); // Syntax报错
 ```
 
@@ -131,3 +134,160 @@ f(); // undefined
 2. 一旦声明常量，必须立即初始化，否则会报错；
 3. 和let命令相同：只在声明所在的块级作用域内有效，存在暂时性死区，不可重复声明；
 4. const实际上保证的并不是变量的值不得改动，而是变量指向的那个内存地址不得改变；
+# 变量的解构赋值
+1. 含义：ES6允许按照一定模式从数组和对象中提取值，然后对变量进行赋值； 
+
+```JavaScript
+let [foo, [[bar], baz]] = [1, [[2], 3]];
+foo // 1
+bar // 2
+baz // 3
+
+let [head, ...tail] = [1, 2, 3, 4];
+tail // [2, 3, 4]
+
+let [x, y, ...z] = ['a'];
+x // "a"
+y // undefined
+z // []
+
+let [a, [b], d] = [1, [2, 3], 4];
+a // 1
+b // 2
+d // 4
+```
+2. 解构赋值指定默认值；
+
+```JavaScript
+function f() {
+    console.log('aaa');
+}
+
+let [x = f()] = [1];
+x // 1
+
+let [x = 1, y = x] = []; // x = 1; y = 1
+let [x = 1, y = x] = [2]; // x = 2; y = 2
+let [x = 1, y = x] = [1, 2]; // x = 1; y = 2
+let [x = y, y = x] = []; // ReferenceError报错
+```
+
+3. 对象的解构赋值，数组的元素按次序排列，变量的取值由它的位置决定，对象的元素没有次序，变量必须与属性同名才能取值；
+
+```JavaScript
+let {foo, baz} = {baz: 'a', foo: 'b'};
+foo // "b"
+baz // "a"
+
+let {foo: baz} = {foo: 'aaa', bar: 'bbb'}
+foo // error
+baz // "aaa"
+```
+
+4. 对象的解构默认值生效的条件是，对象的属性值严格等于undefined
+
+```JavaScript
+var {x = 3} = {x: undefined};
+var {y = 3} = {y : null};
+x // 3
+y // null
+```
+
+5. 变量赋值；
+
+```JavaScript
+let x;
+{x} = {x: 1}; // 报错
+
+let x;
+({x} = {x: 2}); // 2
+```
+
+6. 特殊写法；
+
+```JavaScript
+({} = [true, false]);
+
+let {log, sin, cos} = Math;
+
+let arr = [1, 2, 3];
+let {0: first, [arr.length - 1]: last} = arr;
+first // 1
+last // 3
+```
+
+7. 字符串解构赋值；
+
+```JavaScript
+const [a, b, c, d, e] = 'hello';
+a // h
+e // o
+
+let {length: len} = 'hello';
+len // 5
+```
+
+8. 数值和布尔值的解构赋值，如果等号右边是数值和布尔值，则会先转化为对象；
+
+```JavaScript
+let {toString: s} = 123;
+let {toString: str} = true;
+s === Number.prototype.toString // true
+str === Boolean.prototype.toString // true
+```
+
+9. 函数参数的解构赋值；
+10. 圆括号，不能使用的场景和可以使用的场景；
+11. 使用场景：
+
+```JavaScript
+// 场景一：交换变量的值
+let x = 1;
+let y = 2;
+[x, y] = [y, x];
+
+// 场景二：从函数返回多个值
+function example() {
+    return [1, 2, 3];
+}
+
+let [a, b, c] = example();
+
+function example() {
+    return {x: 1, y: 2};
+}
+
+let {x, y} = example();
+
+// 场景三：函数参数的定义
+function f(x, y, z) {...}
+f([1, 2, 3]);
+
+function f({x, y, z}) {...}
+f({z: 3, y: 2, x: 1}); // 传入无序参数
+
+// 场景四：提取JSON数据
+let jsonData = {id: 1, status: 'ok', data: [1, 2]};
+let {id, status, data: number} = jsonData;
+id // 1
+status // "ok"
+number // [1, 2]
+
+// 场景五：函数参数的默认值
+function f({a = 1, b = 2}) {...}
+
+// 场景六：遍历Map结构(任何部署了Iterator都能使用for of)
+// 扩展---array, map, set
+var map = new Map();
+map.set("first", "1");
+map.set("second", "2");
+for(let [key, value] of map) {
+    console.log(key + " is " + value);
+}
+
+for(let [key] of map) {...}
+for(let [, value] of map) {...}
+
+// 场景七：输入模块的指定方法
+const {SourceMapConsumer, SourceNode} = require("source-map");
+```
