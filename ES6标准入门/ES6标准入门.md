@@ -291,3 +291,206 @@ for(let [, value] of map) {...}
 // 场景七：输入模块的指定方法
 const {SourceMapConsumer, SourceNode} = require("source-map");
 ```
+# 字符串的扩展
+## 字符的Unicode表示法
+1. JavaScript允许采用\uxxxx的形式表示一个字符，其中xxxx表示字符的Unicode码点；
+2. 表示的范围在\u0000~\uFFFF之间，超过了必须使用2个双字节的形式表达；
+3. ES6中将码点放入大括号，就能正确解读该字符；
+4. 字符的6种表示方法。
+
+```JavaScript
+'\z' === 'z';
+'\172' === 'z';
+'\x7A' === 'z';
+'\u007A' === 'z';
+'\u{7A}' === 'z';
+```
+## codePointAt()
+测试一个字符是由2个字节还是4个字节组成：
+
+```JavaScript
+function is32Bit(c) {
+    return c.codePointAt(0) > 0xFFFF;
+}
+```
+## 从码点返回字符String.formCharCode() --> String.fromCodePoint()
+
+```JavaScript
+String.fromCodePoint(0x20BB7); // "𠮷"
+```
+
+## 字符串遍历for --> for of
+
+```JavaScript
+for(let char of "foo") {
+    console.log(char);
+}
+```
+## 返回字符串给定位置的字符charAt() --> at()（提案）
+
+```JavaScript
+'𠮷'.at(0); // "𠮷"
+```
+
+## Unicode正规化normalize()
+```JavaScript
+'\u01D1' === '\u004F\u030C'; // false
+'\u01D1'.normalize() === '\u004F\u030C'.normalize(); // true
+```
+## 字符串包含indexOf() --> includes()、startsWith()、endsWith()
+
+```JavaScript
+var s = "hello world!";
+s.includes('world', 6); // true 
+s.startsWith('world', 5); // true 
+s.endsWith('world', 5); // false 
+```
+## 将字符串重复x次 repeat();
+
+```JavaScript
+'hello'.repeat(2); // "hellohello"
+'x'.repeat(2.9); // "xx"
+'x'.repeat(-1); // RangeError报错
+'x'.repeat(Infinity); // RangeError报错
+'x'.repeat(-0.9); // ""
+'x'.repeat(NaN); // ""
+'x'.repeat("3"); // "xxx"
+```
+## 字符串补全长度 padStart()、padEnd()
+
+```JavaScript
+'xxx'.padStart(6, 'ab'); // "abaxxx"
+'xxx'.padEnd(6, 'ab'); // "xxxaba"
+'xxx'.padStart(2, 'ab'); // "xxx"
+'xxx'.padStart(6, 'abcdefg'); // "abcxxx"
+'xxx'.padStart(6); // "   xxx"
+'09-12'.padStart(10, 'YYYY-MM-DD'); // YYYY-09-12
+```
+## 模版字符串
+
+```JavaScript
+var name = "Xia", age = 18;
+`My name is ${name}, 
+my age is ${age}`;
+
+var a = 1, b = 2;
+`a + b = ${a + b}`; // "a + b = c"
+
+var obj = {a: 1, b: 2};
+`${obj.a + obj.b}`; // "3"
+
+function fn() {
+    return "xia"
+}
+
+`hello ${fn()}!`; // "hello xia!"
+```
+## 标签模版
+
+```JavaScript
+function tag(s, v1, v2) {
+    console.log(s[0]);
+    console.log(s[1]);
+    console.log(s[2]);
+    console.log(v1);
+    console.log(v2);
+    return "OK";
+}
+
+let a = 1, b = 2;
+tag`Hello ${a + b} World ${a * b}`; // 等价tag(["Hello ", " World ", ""], 3, 2)
+// "Hello "
+// " World "
+// ""
+// 3
+// 2
+// "OK"
+```
+## String.raw()
+
+```JavaScript
+String.raw`test\n${2 + 3}`; // "test\n5"
+String.raw({raw: 'test'}, 1, 2, 3, 4, 5); // "t1e2s3t"
+```
+# 数值的扩展
+#### 二进制和八进制
+二进制前缀0b(或0B)，八进制前缀0o（或0O），使用Number转为十进制。
+#### Number.isFinite()、Number.isNaN()
+传统方法先调用Number()转为数值再判断，新方法只对数值有效。
+#### Number.parseInt、Number.parseFloat()
+#### 判断整数Number.isInteger()
+
+```JavaScript
+Number.isInterger(3); // true
+Number.isInterger(3.0); // true
+```
+#### 误差常量Number.EPSILON
+
+```
+function withinErrorMargin(left, right) {
+    return Math.abs(left - right) < Number.EPSILON;
+}
+
+withinErrorMargin(0.1 + 0.2, 0.3); // true
+withinErrorMargin(0.2 + 0.2, 0.3); // false
+```
+#### Number.MAX_SAFE_INTEGER、 Number.MIN_SAFE_INTEGER
+#### Math对象的扩展
+1. 取整：Math.trunc()
+
+```JavaScript
+Math.trunc = Math.trunc || function(x) {
+    return x < 0 ? Math.ceil(x) : Math.floor(x);
+}
+```
+
+2. 判断正负数或0：Math.sign()
+
+```JavaScript
+Math.sign = Math.sign || function(x) {
+    x = + x;
+    if(x === 0 || Number.isNaN(x)) {
+        return x;
+    }
+    return x > 0 ? 1 : -1;
+}
+```
+
+3. 立方根：Math.cbrt()
+
+```JavaScript
+Math.cbrt = Math.cbrt || function(x) {
+    let y = Math.pow(Math.abs(x), 1/3);
+    return x < 0 ? -y : y;
+}
+```
+
+4. 返回整数的前导0数量：Math.clz32()
+
+```JavaScript
+Math.clz32(true); // 31
+```
+
+5. 带符号32位整数形式相乘：Math.imul()
+6. 单精度浮点数形式：Math.fround()
+
+```JavaScript
+Math.fround = Math.fround || function(x) {
+    return new Float32Array([x])[0];
+}
+```
+
+7. 返回所有参数平方和的平方根：Math.hypot()
+8. 对数方法：Math.expm1()、Math.log1p()、Math.log10()、Math.log2()
+9. 指数运算符（\*\*、\*\*=）
+
+```JavaScript
+2 ** 2; // 4
+2 ** 3; // 8
+let a = 2;
+a **= 2; // 等同于a = a * a
+a **= 3; // 等同于a = a * a * a
+```
+
+# 函数的扩展
+## 参数的默认值
