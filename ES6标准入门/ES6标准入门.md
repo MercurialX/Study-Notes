@@ -494,3 +494,388 @@ a **= 3; // 等同于a = a * a * a
 
 # 函数的扩展
 ## 参数的默认值
+1. 参数变量是默认声明的，不能用let或const再次声明；
+2. 函数不能有同名参数；
+3. 惰性求值：参数默认值不是传值的，而是每次都重新计算默认值表达式的值；
+4. 与解构赋值的默认值结合使用；
+
+```JavaScript
+function f({x, y = 2}) {
+    console.log(x, y);
+}
+f({}); // undefined, 5
+f();  // TypeError
+f({x: 1}); // 1, 2
+f({x: 1, y: 3}); // 1, 3
+
+function f1({x = 0, y = 0} = {}) {
+    return [x, y];
+}
+function f2({x, y} = {x: 0, y: 0}) {
+    return [x, y];
+}
+f1(); // [0, 0]
+f2(); // [0, 0]
+f1({}); // [0 , 0]
+f2({}); // [undefined, undefined]
+```
+
+5. 无法只省略有默认值的参数，而不省略其后的参数，除非显示输入undefined；
+
+```JavaScript
+function f(x, y = 2, z) {
+    return [x, y, z];
+}
+f(); // [undefined, 2 , undefined]
+f(1); // [1, 2, undefined]
+f(1,,2); // 报错
+f(1, undefined, 2); // [1, 2, 2]
+```
+
+6. 指定了函数的默认值，函数的length将返回没有指定默认值的参数个数，如果设置了默认值不是尾参数，后面的参数也不计入length；
+
+```JavaScript
+(function f1(a, b = 2, c) {}).length; // 1
+```
+
+7. 设置了函数默认值，声明初始化的时候，参数会形成一个单独的作用域，直到初始化完成；
+
+```JavaScript
+let x = 1;
+function f(y = x) {
+    let x = 2;
+    console.log(y);
+}
+f(); // 1
+
+var a = 1;
+(function f(a = a) {})(); // 报错
+
+var x = 3;
+function f(x, y = function() { x = 4 }) {
+    var x = 5;
+    y();
+    console.log(x);
+}
+f(); // 5
+console.log(x); // 3
+
+var x = 3;
+function f(x, y = function() { x = 4 }) {
+    x = 5;
+    y();
+    console.log(x);
+}
+f(); // 4
+console.log(x); // 3
+```
+
+8. 应用；
+
+```JavaScript
+// 指定一个参数不能省略
+function throwIfMissing() {
+    throw new Error('参数不能省略');
+}
+
+function foo(mustBeProvided = throwIfMissing()) {
+    return mustBeProvided;
+}
+
+foo(); // Error: 参数不能省略
+
+// 参数设为undefined表示可以省略
+function foo(optional = undefined) {
+    return optional;
+}
+
+foo(); // undefined;
+```
+## rest参数
+1. ES6引入rest参数（形式为...变量名），用于获取函数多余参数，替代arguments；
+
+```JavaScript
+function f(...numbers) {
+    let sum = 0;
+    for(let value of numbers) {
+        sum += value;
+    }
+    
+    return sum;
+}
+
+f(1, 2, 3); // 6
+```
+2. rest参数中的变量代表数组，所以数组的方法都能使用；
+3. rest参数之后不能有其他参数，否则会报错；
+4. rest参数不参与length。
+
+## 严格模式
+只要参数设置了默认值，解构赋值，扩展运算符，就不能显示指定严格模式，规避：
+
+```JavaScript
+// 设定全局的严格模式
+'use strict';
+
+function f(a = 1) {...}
+
+// 把函数包在一个无参数的立即执行函数里
+const doSomething = (function(){
+    'use strict';
+    
+    return function(value = 1) {
+        return value;
+    }
+})();
+```
+## name属性
+1. 使用name属性返回该函数的函数名；
+2. 匿名函数赋值给变量，ES5返回为空，ES返回变量名；
+
+```JavaScript
+var f = function() {...};
+//ES5
+f.name; // "";
+//ES6
+f.name; // "f" 
+```
+
+3. Function构造函数的name属性为anonymous；
+
+```JavaScript
+(new Function).name; // "anonymous"
+```
+
+4. bind返回的函数，name属性会加上bound前缀；
+
+```JavaScript
+function foo() {};
+(foo.bind({})).name; // "bound foo"
+```
+## 箭头函数
+1. 使用箭头（=>）定义函数，圆括号"（）"代表参数，多条语句使用{}；
+
+```JavaScript
+var foo = (a, b) => {
+    let result = a  + b;
+    return result;
+}
+```
+
+2. 与解构赋值结合使用；
+
+```JavaScript
+var foo = ({a, b}) => a + '' + b;
+foo({a: 'aa', b: 'bb'}); // "aabb"
+```
+
+3. 简化回调函数；
+
+```JavaScript
+[1, 2, 3].map(x => x * x);
+
+const numbers = (...nums) => nums;
+numbers(1, 2, 3, 4);
+```
+
+4. 箭头函数this对象就是定义时所在的对象，而不是使用时所在的对象；
+
+```JavaScript
+function Timer() {
+    this.s1 = 0;
+    this.s2 = 0;
+    setInterval(() => this.s1 ++, 1000)
+    setTinterval(function() {
+        this.s2 ++;
+    })
+}
+
+var timer = new Timer();
+setTimeout(() => console.log(timer.s1), 3100);
+setTimeout(() => console.log(timer.s2), 3100);
+```
+
+5. 箭头函数不能当做构造函数，即不能new；
+6. 箭头函数不能使用arguments对象和yield命令；
+7. 箭头函数绑定this，双冒号（::） -- 提案；
+8. 尾调用不一定出现再函数尾部，只要在最后一步操作即可；
+
+```JavaScript
+function f(x) {
+    return g(x);
+}
+
+function f(x) {
+    return g(x) + 1;
+}
+
+function f(x) {
+    let y = g(x);
+    return y;
+}
+
+function f(x) {
+    g(x);
+}
+
+function f(x) {
+    if(x > 0) {
+        return m(x);
+    }
+    return g(x);
+}
+```
+
+9. 尾调用优化，尾递归优化，柯里化，严格模式，蹦床函数；
+
+```JavaScript
+function factorial(n) {
+    if(n === 1) {
+        return 1;
+    }
+    
+    return n * factorial(n - 1);
+}
+
+factorial(5); // 120 (复杂度为O(n));
+
+function factorial(n, total = 1) {
+    if(n === 1) {
+        return total;
+    }
+    
+    return factorial(n - 1, n * total);
+}
+
+factorial(5); // 120 (复杂度为O(1))
+```
+
+# 数组的扩展
+1. 扩展运算符（...），将一个数组变为参数序列；
+
+```JavaScript
+function sum(x, y) {
+    return x + y;
+}
+
+let numbers = [1, 2];
+sum(...numbers); // 3
+// 替代apply方法
+Math.max.apply(null, [1, 2, 3]);
+
+Math.max(...[1, 2, 3]);
+
+Array.prototype.push.apply([1, 2, 3], [3, 4, 5]);
+[1, 2, 3].push(...[3, 4, 5]);
+```
+
+2. 扩展运算符的应用；
+
+```JavaScript
+// 合并数组
+var arr1 = [1, 2, 3];
+var arr2 = [4, 4, 5];
+var arr3 = [7, 2];
+[...arr1, ...arr2, ...arr3];
+
+// 与解构赋值想结合
+const [first, ...last] = [1, 2, 3, 4];
+first;
+last;
+
+// 将字符串转为真正的数组
+[...'string'];
+
+// 将实现了Iterator接口的对象，转为数组
+var nodelist = document.querySelectorAll('div');
+[...nodelist];
+
+// 实现了Iterator接口，如Map、Set结构和Generator函数，转为数组
+var map = new Map([
+    [1, 'one'],
+    [2, 'two'],
+    [3, 'three'],
+])
+
+[...map.keys()];
+[...map.values()];
+
+var go = function*() {
+    yield 1;
+    yield 2;
+    yield 3;
+};
+
+[...go()];
+```
+
+3. Array.from()将类似数组的对象和可遍历对象转为数组；
+
+```JavaScript
+let arrayLike = {
+    '0': 'a',
+    '1': 'b',
+    '2': 'c',
+    length: 3
+};
+
+[].slice.call(arrayLike);
+Array.from(arrayLike);
+
+Array.from('string');
+Array.from({ length: 3 });
+
+Array.from({length: 2}, () => 'hello');
+```
+
+4. Array.of()将一组值转为数组；
+
+```JavaScript
+Array.of(1, 2, 3);
+```
+
+5. coprWithin(target, start = 0, end = this.length)
+
+```JavaScript
+[1, 2, 3, 4, 5].copyWithin(0, 3);
+```
+
+6. find()和findIndex();
+
+```JavaScript
+[1, 2, 3, 5].find((value, index, array) => value > 2); // 3
+[1, 2, 3, 5].findIndex((value, index, array) => value > 2); // 2
+```
+
+7. fill();
+
+```JavaScript
+[1, 2, 3].fill(7); // [7, 7, 7]
+[1, 2, 3, 4].fill(7, 1, 3); // [1, 7, 7, 4]
+```
+
+8. 数组遍历：entries()、keys()、values()；
+
+```JavaScript
+for(let key of [1, 2, 3].keys()) {
+    console.log(key);
+}
+
+for(let val of [1, 2, 3].values()) {
+    console.log(val);
+}
+
+for(let [a, b] of [1, 2, 3].entries()) {
+    console.log([a, b]);
+}
+```
+
+9. includes()与indexOf
+10. 数组的空位；
+
+```JavaScript
+0 in [undefined, undefined]; // true
+0 in [,,]; // false
+Array.from([0,,1]); // [0, undefined, 1]
+[...[0,,1]]; // [0, undefined, 1]
+```
