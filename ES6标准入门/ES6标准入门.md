@@ -879,3 +879,319 @@ for(let [a, b] of [1, 2, 3].entries()) {
 Array.from([0,,1]); // [0, undefined, 1]
 [...[0,,1]]; // [0, undefined, 1]
 ```
+# 对象的扩展
+## 属性的简洁表示法
+1. 直接写入变量和函数作为对象的属性和方法；
+
+```JavaScript
+var str = "hello";
+var obj = {str};
+obj;
+```
+
+2. 对象中只写属性名，不写属性值；
+
+```JavaScript
+function f(x, y) {
+    return {x, y};
+}
+
+f(1, 2);
+```
+
+3. 方法的简写；
+
+```JavaScript
+var o = {
+    name: '张三',
+    birth,
+    method() {...} // 等价于'method': function() {...}
+}
+```
+
+4. CommomJS模块输出变量的简洁写法；
+5. 某个方法的值是一个Generator函数；
+
+```JavaScript
+var obj = {
+    *g() {
+        yield 1;
+    }
+}
+```
+## 属性名表达式
+
+```JavaScript
+var str1 = 'foo';
+var obj1 = {x: 1};
+var obj2 = {
+    [str1]: 1,
+    [obj1]: 2
+}
+obj2; // {foo: 1, [object, object]: 2}
+var baz = {[str1]};
+baz; // 报错
+```
+## 方法的name属性
+
+```JavaScript
+const obj = {
+    get f() {},
+    set f(x) {},
+    foo() {}
+}
+
+obj.f.name; // 报错
+obj.foo.name; // 'foo'
+
+const descriptor = Object.getOwnPropertyDescriptor(obj, 'f');
+descriptor.get.name; // 'get f'
+descriptor.set.name; // 'set f'
+obj.foo.bind().name // 'bound foo'
+(new Function()).name; // 'anonymous'
+
+const key1 = Symbol('description');
+const key2 = Symbol();
+let obj = {
+    [key1]() {},
+    [key2]() {}
+}
+obj[key1].name; // '[description]'
+obj[key2].name; // ''
+```
+## Object.is()
+
+```JavaScript
+Object.is('1', '1');
+Object.is({}, {});
+-0 === +0;
+Object.is(-0, +0);
+NaN === NaN;
+Object.is(NaN, NaN);
+```
+## Object.assign()
+1. 基本用法；
+
+```JavaScript
+Object.assign({a: 1, b: 2}, {c: 3}, {d: 4});
+Object.assign({a: 1, b: 2}, {b: 3}, {a: 4});
+Object.assign({a: 1, b: 2});
+Object.assign('abc');
+Object.assign(null);
+Object.assign({a: 1, b: 2}, null);
+Object.assign({}, 'abc', 10, true);
+Object.assign({a: 1}, 'abc', Object.defineProperty({}, 'say', {
+    enumerable: false,
+    value: 'hello'
+}));
+Object.assign({a: 1}, {[Symbol('b')]: 2});
+```
+
+2. 注意点；
+
+```JavaScript
+// 浅复制，复制得到的是对象的引用
+var obj1 = {a: {b: 1}};
+var obj2 = Object.assign({}, obj1);
+obj2.a.b = 2;
+obj2.a.b;
+
+// 同名属性替换
+Object.assign({a: 1, b: 2}, {b: 3}, {a: 4});
+
+// 处理数组
+Object.assign([1, 2, 3], [4, 5]);
+```
+
+3. 常见用途；
+
+```JavaScript
+// 对象添加属性
+class Point {
+    constructor(x, y) {
+        Object.assign(this, {x, y});
+    }
+}
+
+// 对象添加方法
+Object.assign(someClass.prototype, {
+    someMethod() {},
+    anotherMethod() {}
+})
+
+// 克隆对象
+function clone(origin) {
+    let pt = Object.getPrototypeOf(origin);
+    return Object.assign(Object.creat(pt), origin);
+}
+
+// 合并多个对象
+const merge = ...sources => Object.assign({}, ...sources);
+
+// 为属性添加默认值
+const DEFAULT = {
+    version: 1,
+    type: 'css'
+}
+
+function(options) {
+    options = Object.assign({}, DEFAULT, options);
+}
+```
+## 属性的描述对象和可枚举性
+
+```JavaScript
+const obj = {foo: 123};
+Object.getOwnPropertyDescriptor(obj, 'foo');
+//{
+//    value: '123',
+//    writable: true,
+//    enumerable: true,
+//    configurable: true
+//}
+
+// 所有class原型的方法都是不可枚举的
+Object.getOwnPropertyDescriptor(class{foo() {}}.prototype, 'foo').enumerable;
+```
+## 属性的遍历
+1. for...in;
+2. Object.keys(obj);
+3. Object.getOwnPropertyNames(obj);
+4. Object.getOwnPropertySymbols(obj);
+5. Reflect.ownKeys(obj); // 返回数组，按数值（数字），字符串（时间），symbol（时间）排序
+## 对象属性相关操作
+1. 内部属性，__proto__，不推荐使用;
+2. Object.setPrototypeOf(object, prototype);
+
+```JavaScript
+var obj = {x: 1, y: 2};
+var proto = {};
+Object.setPrototypeOf(obj, proto);
+proto.z = 3;
+obj.z;
+
+Object.setPrototypeOf(1, {}) === 1;
+Object.setPrototypeOf("foo", {}) === "foo";
+Object.setPrototypeOf(true, {}) === true;
+Object.setPrototypeOf(undefined, {});
+Object.setPrototypeOf(null, {});
+```
+
+3. Object.getPrototypeOf(object);
+
+```JavaScript
+Object.getPrototypeOf(1);
+Object.getPrototypeOf("foo");
+Object.getPrototypeOf(true);
+Object.getPrototypeOf(undefined);
+Object.getPrototypeOf(null);
+```
+
+4. Object.keys()、Object.values()、Object.entries()
+
+```JavaScript
+var obj = Object.create({}, {p: {value: 1}});
+Object.values(obj); // []
+Object.values({[Symbol()]: 123, foo: 'aaa'}); // ['aaa']
+Object.values('foo'); // ['f', 'o', 'o']
+
+var obj = {x: 1, y: 2, z: 3};
+for(let [k, v] of Object.entries(obj)) {
+    console.log`${JSON.stringify(k)}:${JSON.stringify(v)}`;
+}
+
+// 将对象转为Map
+var obj = {x: 1, y: 2};
+var map = new Map(Object.entries(obj));
+map;
+```
+
+## 对象的扩展运算符
+
+```JavaScript
+// 解构赋值
+let {x, y, ...z} = {x: 1, y: 2, a: 1, b: 2};
+x;
+y;
+z;
+
+let {x, ...y} = undefined;
+let {x, ...y} = null;
+let {x, ...y, z} = obj;
+
+let obj = {a: {b: 1}};
+let {x, ...y} = {x: 1, obj};
+obj.a.b = 2;
+y.obj.a.b;
+
+let a = {a: 1};
+let b = {b: 2};
+Object.setPrototypeOf(b, a);
+let {...c} = b;
+c.a;
+c.b;
+
+var o = Object.create({x: 1, y: 2});
+o.z = 3;
+var {x, ...{y, z}} = o;
+x;
+y;
+z;
+
+// 扩展运算符
+let z = {a: 1, b: 2};
+let c = {...z};
+c; // 只复制对象实例的属性
+// 等同于 Object.assign({}, a);
+let d = Object.assign(Object.create(Object.getPrototypeOf(z)), a); // 复制对象实例的属性和对象原型的属性
+
+let e = {...z, ...c, a: 11, b: 22};
+{...{}, a: 1};
+{...null, ...undefined};
+
+let runtimeError = {
+    ...a,
+    ...{
+        get x() {
+            throw new Error('throw error');
+        }
+    }
+} // 参数对象之中有取值函数get，这个函数将会执行
+```
+## 正确复制get和set属性，Object.getOwnPropertyDescriptors()
+
+```JavaScript
+const obj = {
+    name: 'hello',
+    get bar() {return 'abc'}
+};
+Object.getOwnPropertyDescriptor(obj, 'name');
+Object.getOwnPropertyDescriptors(obj);
+
+// 配合Object.defineProperties方法正确复制
+const clone = (to, source) => Object.defineProperties(to, Object.getOwnPropertyDescriptors(source));
+
+// 配合Object.create将对象属性克隆到另一个对象
+const clone = obj => Object.create(Object.getPropertyOf(obj), Object.getOwnPropertyDescriptors(obj));
+```
+## 对象的继承方法
+
+```JavaScript
+const obj = {
+    name: 'Ray',
+    set sayHello() { console.log('hello') }
+}
+// Object.create
+let obj1 = Object.create(obj);
+// Object.assign
+let obj2 = Object.assign({}, obj);
+// Object.getOwnPropertyDescriptors
+let obj3 = Object.getOwnPropertyDescriptors(obj);
+```
+## Null传导运算符（提案）
+
+```JavaScript
+const name = a && a.b && a.b.c && a.b.c.d || 'default';
+// 可以写成
+const name = a?.b?.c?.d || 'default';
+```
