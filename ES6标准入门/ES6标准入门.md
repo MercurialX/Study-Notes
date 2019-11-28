@@ -1195,3 +1195,438 @@ const name = a && a.b && a.b.c && a.b.c.d || 'default';
 // 可以写成
 const name = a?.b?.c?.d || 'default';
 ```
+
+# Symbol
+## Symbol概述
+1. 一种新的原始数据类型Symbol，表示独一无二的值；七种数据类型分别是Undefined、Null、String、Number、Array、Object和Symbol；
+
+```JavaScript
+let s = Symbol();
+typeof s; // 'Symbol'
+```
+2. 接受一个参数，表示对Symbol的描述，如果参数为对象就调用对象toString方法；
+
+```JavaScript
+var s1 = Symbol('foo');
+var s2 = Symbol('foo');
+s1; // Symbol(foo)
+s1.toString(); // 'Symbol(foo)'
+s1 === s2; // false
+```
+
+3. Symbol值不能参加运算；
+
+```JavaScript
+var s1 = Symbol('foo');
+'Symbol is ' + s1;
+`Symbol is $(s1)`;
+```
+
+4. Symbol值能转为字符串或布尔值，但不能转为数值；
+
+```JavaScript
+var s = Symbol('foo');
+String(s); // 'Symbol(foo)'
+Boolean(s); // true
+Number(s); // 报错
+!s; // false
+```
+## 作为属性名的Symbol
+1. 写法；
+
+```JavaScript
+var mySymbol = Symbol();
+// 写法一
+var o = {};
+o[mySymbol] = 1;
+
+// 写法二
+var o = {
+    [mySymbol]: 1
+}
+
+// 写法三
+var o = {};
+o.defineProperty(o, [Symbol], {
+    value: 1
+})
+
+// 使用点运算符？
+o.mySymbol = 1;
+
+let obj = {
+    [mySymbol]() {...}
+}
+```
+2. 消除魔术字符串，即在代码中多次出现、与代码形成强耦合的某一个具体的字符串或数值
+
+```JavaScript
+const shapeType = {
+    triangle: Symbol()
+}
+
+function getArea(shape, options) {
+    var area = 0;
+    switch(shape) {
+        case shapeType.triangle:
+          area = .5 * options.width * options.height;
+          break;
+    }
+    return area;
+}
+
+getArea(shapeType.triangle, {width: 100, height: 100});
+```
+3. 属性名的遍历，Object.getOwnPropertySymbols()和Reflects.ownKeys()；
+
+```JavaScript
+var a = Symbol('a');
+var b = Symbol('b');
+var obj = {
+    [a]: 1,
+    [b]: 2,
+    c: 3
+}
+
+Object.getOwnPropertySymbols(obj);
+Reflect.ownkeys(obj);
+// 思考
+for(let k in obj) {
+    console.log(k);
+}
+
+Object.getOwnPropertyNames(obj);
+```
+
+## Symbol.for()、Symbol.keyFor()
+
+```JavaScript
+var s1 = Symbol.for('foo');
+var s2 = Symbol.for('foo');
+var s3 = Symbol('foo');
+s1 === s2; // true
+s2 === s3; // false
+Symbol.keyFor(s1); // 'foo'
+Symbol.keyFor(s3); // undefined
+```
+## 模块的Singleton模式
+## 内置的Symbol值
+1. instanceof和Symbol.hasInstance;
+
+```JavaScript
+class Myclass {
+    [Symbol.hasInstance](foo) {
+        return foo instanceof Array;
+    }
+}
+```
+
+2. Symbol.isConcatSpreadable;
+
+```JavaScript
+let obj = {length: 2, 0: 'e', 1: 'f'};
+['a', 'b'].concat(obj, 'c', 'd');
+obj[Symbol.isConcatSpreadable] = true;
+['a', 'b'].concat(obj, 'c', 'd');
+```
+
+3. instanceof和Symbol.species;
+
+```JavaScript
+class MyArray extends Array {
+    static get [Symbol.species]() {
+        return Array;
+    }
+}
+
+var a = new MyArray(1, 2, 3);
+var maped = a.map(x => x * x);
+maped instanceof MyArray; // false
+maped instanceof Array; // true
+```
+
+4. match和Symbol.match;
+
+```JavaScript
+String.prototype.match(regexp);
+regexp[Symbol.match](this);
+```
+
+5. replace和Symbol.replace;
+
+```JavaScript
+String.prototype.replace(searchValue, replaceValue);
+searchValue[Symbol.replace](this, replaceValue);
+```
+
+6. search和Symbol.search;
+
+```JavaScript
+String.prototype.search(regexp);
+regexp[Symbol.search](this);
+```
+
+7. Symbol.split;
+
+```JavaScript
+String.prototype.split(separator, limit);
+separator[Symbol.split](this, limit);
+```
+
+8. 默认遍历器的方法Symbol.iterator;
+
+```JavaScript
+var myIterator = {};
+myIterator[Symbol.iterator] = function* () {
+    yield 1;
+    yield 2;
+    yield 3;
+}
+[...myIterator]; // [1, 2, 3]
+```
+
+9. 对象被转为原始类型的值时返回该对象对应的原始类型值Symbol.toPrimitive;
+
+```JavaScript
+let obj = {
+    [Symbol.toPrimitive](hint) {
+        switch (hint) {
+            case 'number':
+                return 123;
+            case 'string':
+                return 'str';
+            case 'default':
+                return 'default'
+            default:
+                throw new Error();
+        }
+    }
+};
+
+2 * obj; // '246'
+2 + obj; // '2default'
+obj == 'default'; // true
+String(obj); // 'str'
+```
+
+10. 返回值会出现再toString的字符串中Symbol.toStringTag;
+
+```JavaScript
+({[Symbol.toStringTag]: 'Foo'}).toString(); // "[object Foo]"
+```
+
+11. 使用with时哪些属性会被with环境排除：Symbol.unscopables;
+
+```JavaScript
+Object.keys(Array.prototype[Symbol.unscopables]; 
+// ["copyWithin", "entries", "fill", "find", "findIndex", "includes", "keys", "values"]
+```
+
+# Set和Map数据结构
+## Set
+1. 基本用法；
+
+```JavaScript
+// 声明和赋值
+const s = new Set();
+[1, 2, 3, 1, 1].forEach(x => s.add(x));
+const set = new Set([1, 2, 3, 1, 1]);
+[...s]; // [1, 2, 3]
+[...set]; // [1, 2, 3]
+
+// 向Set传值不会发生类型转换
+let s = new Set();
+let a = NaN;
+let b = NaN;
+s.add(a);
+s.add(b);
+[...s]; // [NaN]
+
+// 两个对象总是不相等
+let set = new Set();
+set.add({});
+set.size;
+set.add({});
+set.size;
+```
+
+2. Set实例的属性和方法；
+
+```JavaScript
+var s = new Set();
+s.add(1).add(2); // Set(2) {1, 2}
+s.delete(1); // true
+s.has(1); // true
+s.clear(); // undefined
+s; // Set(0) {}
+
+// 使用Array.from将Set转为数组，去重
+Array.from(new Set([1, 2, 3, 1, 2, 1])); // [1, 2, 3]
+```
+
+3. Set遍历；
+
+```JavaScript
+var set = new Set(['a', 'b', 'c']);
+[...set];
+
+for(let k of set.keys()) {
+    console.log(k);
+}
+
+for(let v of set.values()) {
+    console.log(v)
+}
+
+for(let item of set.entries()) {
+    console.log(item);
+}
+
+set.forEach((k, v) => console.log(k));
+[...set].map(x => console.log(x));
+[...set].filter(x => x === 'a');
+
+// 交集、并集、差集
+let a = new Set([1, 2, 3]);
+let b = new Set([1, 4, 5]);
+[...a].filter(x => b.has(x));
+new Set([...a, ...b]);
+[...a].filter(x => !b.has(x));
+```
+
+4. WeakSet, 成员只能是对象，成员是弱引用，不计入垃圾回收机制，无法遍历没有size;
+
+```JavaScript
+var ws = new WeakSet();
+ws.add(1);
+ws.add([1]);
+ws.add([2]);
+ws.delete([1]);
+ws.clear();
+const a = [[1], [2]];
+const b = [1, 2];
+const ws = new WeakSet(a);
+const ws = new WeakSet(b);
+```
+## Map：为了解决Object只能用字符串作为键,值-值
+1. Map的含义与基本用法；
+
+```JavaScript
+const map = new Map();
+const o = {say: 'hello'};
+map.set(o, 'content');
+map.get(o);
+map.has(o);
+map.delete(o);
+map.has(o);
+
+const m = new Map(['name', '张三'], ['age', 18]);
+m.size;
+// 多次赋值、读取未知的键
+const map = new Map();
+map.set(1, 'aaa').set(1, 'bbb');
+map.get('dddd');
+// 与内存地址的联系
+const map = new Map();
+map.set(['a'], 111).set(['a'], 222);
+map.get(['a']); // undefined
+map.size;
+// 键是简单类型的值
+const map = new Map();
+map.set(+0, 'aaa');
+map.get(-0);
+map.set(true, 1).set(true, 2);
+map.set(undefined, 1).set(NaN, 2).set(null, 3).set(null, 4);
+map.clear();
+```
+
+2. Map的属性与方法:set、get、size、delete、has、clear()；
+3. Map的遍历：keys()、values()、entries()、forEach((k, v, m) => ...)；
+4. Map与其他类型的转换；
+
+```JavaScript
+// Map与数组相互转换
+const map = new Map([[1, 2], [3, 4]]);
+[...map];
+// Map与对象相互转换
+// 键为字符串的Map
+function mapToObj(map) {
+    let obj = Object.create(null);
+    for(let [k, v] of map) {
+        obj[k] = v;
+    }
+    
+    return obj;
+}
+
+function objToMap(object) {
+    let map = new Map();
+    for(let k of Object.keys(object)) {
+        map.set(k, object[k]);
+    }
+    
+    return map;
+}
+// Map与Json相互转换
+// map键为string转为字符串JSON
+function mapToStrJSON(map) {
+    return JSON.stringify(mapToObj(map));
+}
+// map键含其他类型转为数组JSON
+function mapToJSON(map) {
+    return JSON.parse([...map]);
+}
+// JSON转map
+function strJsontoMap(json) {
+    return objToMap(JSON.parse(json));
+}
+// JSON成员本身又具有两个成员的数值转map
+function jsontoMap(json) {
+    return new Map(JSON.parse(json))
+}
+```
+
+5. WeakMap：只接受对象作为键名，键名所指向的对象不计入垃圾回收机制，不是键值
+
+```JavaScript
+// 以DOM节点作为键名
+let elememt = document.getElementById('demo');
+let wm = new WeakMap();
+wm.set(element, {times: 0});
+element.addEventListener('click', function() {
+    let times = wm.get(element);
+    times.times ++;
+}, false)
+// 注册监听事件的listener对象为键名
+const listener = new WeakMap();
+listener.set(ele1, handler1);
+listener.set(ele2, handler2);
+ele1.addEventListener('click', listener.get(ele1), false);
+ele2.addEventListener('click', listener.get(ele2), false);
+// 部署私有属性
+const _counter = new WeakMap();
+const _action = new WeakMap();
+
+class Countdown {
+    constructor(counter, action) {
+        _counter.set(this, counter);
+        _action.set(this, action);
+    }
+    
+    dec() {
+        let counter = _counter.get(this);
+        console.log(counter);
+        if(counter < 1) {
+            _action.get(this)();
+            return;
+        }
+        
+        counter --;
+        _counter.set(this, counter);
+    }
+}
+
+const c = new Countdown(2, () => console.log('DONE'));
+c.dec();
+c.dec();
+```
