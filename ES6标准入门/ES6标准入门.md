@@ -1630,3 +1630,694 @@ const c = new Countdown(2, () => console.log('DONE'));
 c.dec();
 c.dec();
 ```
+# Proxy
+## 概述
+1. 用于修改某些操作的默认行为，属于一种“元编程”，即对编程语言进行编程；
+```JavaScript
+var proxy = new Proxy(target, handler);
+// target：所要代理的目标对象；handler：配置对象，提供对应的处理函数
+```
+2. 要使Proxy起作用必须针对Proxy实例进行操作，而不是针对目标对象；
+3. 没有设置handler，等同于直接通向原对象；
+
+```JavaScript
+var target = {};
+var handler = {};
+var proxy = new Proxy(target, handler);
+proxy.a = '111';
+target.a;
+```
+4. 将Proxy设置到object.proxy属性，从而可以在object上调用；
+
+```JavaScript
+var object = {proxy: new Proxy(target, handler)};
+// Proxy实例作为其他对象原型
+var proxy = new Proxy({}, {
+    get: (target, property) => 35
+})
+let obj = Object.create(proxy);
+obj.time;
+```
+5. 同一个拦截器设置多个操作；
+## Proxy实例的方法
+1.get(object, name, receiver);
+
+```JavaScript
+var person = {
+    name: '张三'
+}
+var handler = {
+    get: (target, property) => {
+        if(property in target) {
+            return target[property];
+        }else {
+            throw new Error('没有属性');
+        }
+    }
+}
+var proxy = new Proxy(person, handler);
+proxy.name;
+proxy.age;
+
+// get方法继承
+var obj = Object.create(proxy);
+obj.name;
+obj.age;
+
+// 实现属性的链式操作
+var pipe = (function() {
+   return function(value) {
+       var funcStack = [];
+       var proxy = new Proxy({}, {
+           get: (target, property) => {
+               if(property === 'get') {
+                   return funcStack.reduce((val, fn) => fn(val), value);
+               }
+               funcStack.push(window[property]);
+               return proxy;
+           }
+       });
+       
+       return proxy;
+   } 
+}());
+
+var double = x => x * 2;
+var pow = x => x * x;
+var reverseInt = x => x.toString().split('').reverse().join('') | 0;
+
+pipe(3).double.pow.reverseInt.get;
+
+// 实现一个生成各种dom节点的通用函数dom
+const dom = new Proxy({}, {
+    get(target, property) {
+        return (attrs = {}, ...children) => {
+            const el = document.createElement(property);
+            for(let prop of Object.keys(attrs)) {
+                el.setAttribute(prop, attrs[prop]);
+            }
+            for(let child of children) {
+                if(typeof child === 'string') {
+                    child = document.createTextNode(child);
+                }
+                el.appendChild(child);
+            }
+            return el;
+        }
+    }
+});
+
+const el = dom.div({}, 
+    'Hello, my name is',
+    dom.a({href: '/'}, 'Mark'),
+    ',I like:',
+    dom.ul({},
+        dom.li({}, 'eat'),
+        dom.li({}, 'music'),
+        dom.li({}, '...')
+    )
+)
+document.body.appendChild(el);
+
+// 如果一个属性不可配置或不可写，使用get()会报错
+const obj = Object.defineProperties({}, {
+    name: {
+        value: '张三',
+        configurable: false,
+        writable: false
+    }
+});
+const proxy = new Proxy(obj, {
+    get(terget, property) {
+        return 'aaa';
+    }
+})
+proxy.name;
+```
+2. set(target, key, value);
+3. apply(target, ctx, args);
+
+```JavaScript
+var p = () => 'function';
+var proxy = new Proxy(p, {
+    apply() {
+        return 'proxy';
+    }
+});
+proxy();
+
+// 两个数的和再翻倍
+var sum = (a, b) => a + b;
+var twice = {
+    apply(target, ctx, args) {
+        return Reflect.apply(...arguments) * 2;
+    }
+}
+var proxy = new Proxy(sum, twice);
+proxy(1, 2);
+proxy.call(null, 2, 3);
+proxy.apply(null, [5, 5]);
+Reflect.apply(proxy, null, [9, 10]);
+```
+
+4. has(target, key);
+
+```JavaScript
+var obj = {
+    name: '张三',
+    _name: 'aaa'
+};
+var proxy = new Proxy(obj, {
+  has(target, key) {
+      if(key[0] === '_') {
+          return false;
+      }
+      
+      return target[key];
+  }  
+});
+
+'name' in proxy;
+'_name' in proxy;
+
+// 原对象是不可配置或禁止扩展，has拦截会报错
+var obj = { name: 1 };
+Object.preventExtensions(obj);
+
+// for...in依旧有效
+for(let k in proxy) {
+    console.log(k);
+}
+```
+5. construct(target, args);
+
+```JavaScript
+var proxy = new Proxy(function() {}, {
+    construct(target, args) {
+        return {value: [...args]};
+    }
+});
+(new proxy(1, 2)).value;
+
+// construct必须返回对象否则报错
+var p = new Proxy(function() {}, {
+    construct(target, args) {
+        return 1;
+    }
+})
+new p();
+```
+
+6. deleteProperty(target, key); // 目标对象设置了不可配置的属性不能使用
+7. defineProperty(target, key, descriptor); // extensible报错
+8. getOwnerPropertyDescriptor(target, key);
+9. getPrototypeOf(target); // 返回值必须是对象或null，extensible返回目标对象原型
+10. setPropertyOf(target, proto); // 返回值必须是布尔值，extensible不能改变目标对象原型
+11. isExtensible(target); // 返回值必须是布尔值且与isExtensible一致
+12. preventExtensions(target); // 返回值是布尔值且目标对象isExtensible才能返回true
+13. ownKeys(target);
+
+```JavaScript
+var obj = {
+    a: '1',
+    _a: '111',
+    b: '2',
+    _b: '222'
+}
+var proxy = new Proxy(obj, {
+    ownKeys(target) {
+        return Reflect.ownKeys(target).filter(key => key[0] === '_'); 
+    }
+})
+
+for(let key of Object.keys(proxy)) {
+    console.log(obj[key]);
+}
+// 自动过滤：不存在属性、属性名为Symbol值、不可遍历（enumable）的属性
+let obj = {
+    a: 'aa',
+    b: 'bb',
+    [Symbol.for('secret')]: 'cc'
+}
+Object.defineProperty(obj, 'c', {
+    enumable: false,
+    writable: true,
+    configurable: true,
+    value: 'cc'
+})
+var proxy = new Proxy(obj, {
+    ownKeys(target) {
+        return Reflect.ownKeys(target);
+    }
+})
+Object.keys(proxy); // ['a', 'b']
+Object.getOwnPropertyNames(proxy); // ['a', 'b', 'c']
+
+// 返回的数值成员只能是字符串或Symbol，否则报错
+Object.getOwnPropertyNames(new Proxy({}, {
+    ownKeys(target) {
+        return [0, null, undefined];
+    }
+}));
+
+// 目标对象的不可配置属性必须被返回
+var obj = {a: 'aaa'};
+Object.defineProperty(obj, 'key', {
+    configurable: false,
+    enumerable: true,
+    value: 'bbb'
+});
+Object.getOwnPropertyNames(new Proxy(obj, {
+    ownKeys(target) {
+        return ['a'];
+    }
+}));
+
+// 目标对象是不可扩展的（non-extensible），必须返回所有属性且不能包含多余属性
+var obj = {a: 1};
+Object.preventExtensions(obj);
+Object.getOwnPropertyNames(new Proxy(obj, {
+    ownKeys(target) {
+        return ['a', 'n'];
+    }
+}));
+```
+## Proxy.revocable()
+返回：一个可取消的Proxy实例；
+使用场景：目标对象不允许直接访问，必须通过代理访问，一旦访问结束，就收回代理权，不允许再次访问；
+
+```JavaScript
+let target = {};
+let handler = {};
+let {proxy, revoke} = Proxy.revocable(target, handler);
+proxy.foo = 111;
+proxy.foo;
+revoke();
+proxy.foo;
+```
+## this问题
+
+```JavaScript
+// 在Proxy代理的情况下，目标对象内部的this会指向Proxy
+const target = {
+    m() {
+        console.log(this === proxy)
+    }
+}
+const handler = {};
+const proxy = new Proxy(target, handler);
+
+target.m();
+proxy.m();
+
+const _name = new WeakMap();
+class Person {
+    constructor(name) {
+        _name.set(this, name);
+    }
+    get name() {
+        return _name.get(this);
+    }
+}
+
+const jane = new Person('jane');
+jane.name;
+const proxy = new Proxy(jane, {});
+proxy.name;
+
+// 有些原生对象的内部属性只有通过this才能获取，因此不能使用Proxy代理
+const target = new Date();
+const handler = {};
+const proxy = new Proxy(target, handler);
+proxy.getDate();
+
+const p = new Proxy(target, {
+    get(target, property) {
+        if(property === 'getDate') {
+            return target.property.bind(target);
+        }
+        return Reflect.get(target, property);
+    }
+})
+```
+## web客户端
+
+```JavaScript
+function createWebService(baseUrl) {
+    return new Proxy({}, {
+        get(target, prop, receiver) {
+            return () => httpGet(baseUrl + '/' + prop);
+        }
+    })
+}
+```
+# Reflect
+## 概述
+1. 将Object对象上一些明显属于语言内部的方法（如Object.defineProperty）放到Reflect上；
+2. 修改某些Object方法的返回结果，让其更加合理，比如Object.defineProperty在无法定义时抛出错误，而Reflect.defineProperty则会返回false；
+3. 让Object操作变为函数行为，如in变成Reflect.has()；
+4. Reflect对象的方法与Proxy方法一一对应。
+## 静态方法
+1. Reflect.get(target, name, receiver);
+
+```JavaScript
+var obj = {
+    foo: 1,
+    bar: 2,
+    get baz() {
+        return this.foo + this.bar
+    }
+}
+
+Reflect.get(obj, 'baz');
+Reflect.get(obj, 'baz', {
+    foo: 10,
+    bar: 1
+});
+
+// 第一个参数不是对象报错
+Reflect.get(1, 'a');
+```
+
+2. Reflect.set(target, name, value, receiver);
+
+```JavaScript
+var obj = {
+    foo: 1,
+    set bar(value) {
+        return this.foo = value;
+    }
+}
+var receiver = {
+    foo: 2
+}
+obj.foo;
+Reflect.set(obj, 'bar', 3);
+Reflect.set(obj, 'bar', 4, receiver);
+obj.foo;
+receiver.foo;
+
+// 第一个参数不是对象报错
+Reflect.set(1, 'a', {});
+
+// Proxy.set会触发Proxy.defineProperty拦截
+```
+3. Reflect.has(target, key);
+
+```JavaScript
+var obj = {name: '张三'};
+// 旧写法
+name in obj;
+// 新写法
+Reflect.has(obj, name);
+```
+
+4. Reflect.deleteProperty(target, key);
+
+```JavaScript
+var obj = {name: '张三'};
+// 旧写法
+delete obj.name;
+// 新写法
+Reflect.deleteProperty(obj, name);
+```
+5. Reflect.construct(target, args);
+
+```JavaScript
+function Person(name) {
+    this.name = name;
+}
+// new
+const p = new Person('张三');
+// 不用new调用构造函数
+const person = Reflect.construct(Person, ['张三']);
+```
+6.Reflect.getPrototypeOf(target);
+
+```JavaScript
+const obj = new Person('张三');
+// 旧写法
+Object.getPrototypeOf(obj) === Person.prototype;
+// 新写法
+Reflect.getPrototypeOf(obj) === Person.prototype;
+// 区别：参数不是对象前者转为对象再运行，后者报错
+Object.getPrototypeOf(1);
+Reflect.getPrototypeOf(1);
+```
+7. Reflect.setPrototypeOf(target, newproto);
+
+```JavaScript
+const obj = new Person();
+// 旧写法
+Object.setPrototypeOf(obj, OtherPerson);
+// 新写法
+Object.setPrototypeOf(obj, OtherPerson);
+// 区别：第一个参数不是对象前者会返回参数本身，后者会报错。
+Object.setPrototypeOf(1, {});
+Reflect.setPrototypeOf(1, {});
+//第一个参数是undefined或null，两者都会报错
+Object.setPrototypeOf(null, {});
+Reflect.setPrototypeOf(null, {});
+```
+
+8. Reflect.apply(func, thisArg, args);
+
+```JavaScript
+const ages = [11, 33, 42, 1, 2, 92];
+// 旧写法
+const youngest = Math.min.apply(Math, ages);
+const type = Object.prototype.toString.call(youngest);
+// 新写法
+const youngest = Reflect.apply(Math.min, Math, ages);
+const type = Reflect.apply(Object.prototype.toString, youngest, []);
+```
+
+9. Reflect.defineProperty(target, key, descriptor);
+10. Reflect.getOwnPropertyDescriptor(target, key);
+11. Reflect.isExtensible(target);
+12. Reflect.preventExtensions(target);
+13. Reflect.ownKeys(target);
+
+```JavaScript
+// 等于Object.getOwnPropertyNames与Object.getOwnPropertySymbols之和
+var obj = {
+    a: '1',
+    b: '2',
+    [Symbol.for('foo')]: '3',
+    [Symbol.for('baz')]: '4'
+}
+
+Object.getOwnPropertyNames(obj);
+Object.getOwnPropertySymbols(obj);
+Reflect.ownKeys(obj);
+```
+## 观察者模式
+
+```JavaScript
+const queuedObservers = new Set();
+const observe = fn => queuedObservers.add(fn);
+const observable = obj => new Proxy(obj, {set});
+
+function set(target, key, value, receiver) {
+    const result = Reflect.set(target, key, value, receiver);
+    queuedObservers.forEach(observer => observer());
+    return result;
+}
+
+const person = {
+    name: '张三',
+    age: 18
+}
+
+function print() {
+    console.log`${person.name}, ${person.age}`;
+}
+
+observe(print);
+person.name = '李四';
+```
+# Promise对象
+## Promise含义
+1. 所谓Promise，简单来说就是一个容器，保存着某个未来才会结束的事件的结果；
+2. 对象的状态不受外界影响；
+3. 一旦状态改变就不会再变，任何时候都可以得到这个结果；
+4. 缺点是无法取消Promise，当处于Pending状态时，无法得知具体进展；
+
+## 基本用法
+
+```JavaScript
+// Promise立即执行
+let promise = new Promise(function(resolve, reject) {
+    console.log('Promise');
+    resolve();
+});
+promise.then(function() {
+    console.log('Resolve');
+});
+console.log('hi');
+
+// Promise作为resolve的参数
+let p1 = new Promise(function(resolve, rejcet) {
+   console.log('p1');
+   resolve();
+});
+let p2 = new Promise(function(resolve, reject) {
+    console.log('p2');
+    resolve(p1);
+});
+p2
+    .then(res => console.log(res))
+    .catch(err => console.log(err));
+
+// 调用resolve或reject不会终结Promise的执行
+new Promise(function(resolve, reject){
+    resolve(1);
+    console.log(2);
+}).then(res => {
+    console.log(res);
+});
+```
+
+## Promise.prototype.then()
+
+```JavaScript
+// then返回的是一个新的Promise实例，不是原来那个，所以可以使用链式写法
+getJSON(url).then(
+    res => res,
+    err => err
+).then(
+    res => res,
+    err => err
+);
+```
+## Promise.prototype.catch()
+
+```JavaScript
+// catch捕获异常
+getJSON(url).then(function(posts) {
+    ...
+}).catch(function(error) {
+    ...
+})
+
+// 如果Promise状态时Resolved，再抛出异常无效
+var promise = new Promise(function(resolve, reject) {
+    resolve('ok');
+    throw new Error('错误');
+});
+promise.then(val => console.log(val)).catch(err => console.log(err));
+
+// Promise错误具有“冒泡”特性，应使用catch来处理异常
+// catch返回的是一个新的Promise对象，可以使用链式写法
+// catch方法抛出的错误，如果后面没有catch将导致错误无法捕获，也无法传递到外层
+```
+## Promise.all()
+
+```JavaScript
+// 将多个Promise包装成一个Promise
+var p = Promise.all([p1, p2, p3]);
+
+// 所有子Promis都是Fulfilled，状态才是Fulfilled，否则返回第一个rejected子Promise
+
+// 子Promise自身定义了catch方法，那么它被rejected时并不会触发Promise.all()的catch方法
+var p1 = new Promise(function(resolve, reject) {
+   resolve('p1 ok'); 
+})
+.then(res => res)
+.catch(err => err);
+var p2 = new Promise(function(resolve, reject) {
+    throw new Error('error');
+})
+.then(res => res)
+.catch(err => err);
+
+Promise.all([p1, p2]).then(res => console.log(res)).catch(err => console.log(err));
+
+// 子Promise没有自己的catch就会调用Promise.all()的catch
+```
+## Promise.race()
+同样是将多个Promise实例包装成一个新的Promise实例；子Promise只要有一个率先改变状态，Promise.race的状态就跟着改变，率先改变的示例的返回值就会传递给Promise.race的回调函数。
+```JavaScript
+var promise = Promise.race([p1, p2, p3]);
+```
+## Promise.resolve()
+将对象转为Promise对象：
+
+```JavaScript
+// 参数是一个Promise实例，直接返回这个实例
+
+// 参数是一个thenable对象，会将这个对象转为Promise，执行then
+let obj = {
+    then(resolve, reject) {
+        resolve('ok');
+    }
+}
+let p = Promise.resolve(obj);
+p.then(val => console.log(val));
+
+// 参数不具有thenable方法的对象或根本不是对象，返回新的Promise，状态为resolver
+let p = Promise.resolve("hello");
+p.then(s => console.log(s));
+
+// 不带任何参数，返回一个Resolved状态的Promise
+let p = Promise.resolve();
+setTimeout(() => console.log(1), 0); // 下轮事件执行
+p.then(res => console.log(2)); // 本轮事件执行
+console.log(3); // 立即执行
+```
+## Promise.reject()
+返回一个新的Promise实例，状态为rejected
+## 附加方法
+1. done();
+
+```JavaScript
+Promise.prototype.done = function(onFilfilled, onRejected) {
+    this.then(onFilfilled, onRejected)
+    .catch(function(reason) {
+        setTimeout(() => throw reason, 0);
+    })
+}
+asyncFunc().then(f1).then(f2).done();
+// 位于回调链的尾端，保证抛出任何可能出现的错误
+```
+
+2. finally();
+
+```JavaScript
+Promise.proto.finally = function(callback) {
+    let p = this.constructor;
+    return this.then(
+        value => P.resolve(callback()).then(() => value),
+        reason => P.resolve(callback()).then(() => {throw reason})
+    );
+};
+```
+## Promise.try()（提案）
+
+```JavaScript
+// 同步函数会在本轮事件循环的末尾执行
+const f = () => console.log('now');
+Promise.resolve().then(f);
+console.log('later');
+
+// 使用async函数
+const f = () => console.log('now');
+(async () => f())();
+console.log('later');
+// async会吃掉f()抛出的异常，需要重新捕获
+(async () => f())().then(...).catch(...);
+
+// 使用new Promise()
+const f = () => console.log('now');
+(
+    () => new Promise(
+        resolve => resolve(f())
+    )
+)()
+console.log('later');
+
+// try
+const f = () => console.log('now');
+Promise.try(f);
+console.log('later');
+```
