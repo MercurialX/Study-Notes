@@ -124,7 +124,7 @@ f(); // undefined
 }
 ```
 #### 块级作用域与函数声明
-1. 允许再块级作用域内声明变量；
+1. 允许在块级作用域内声明变量；
 2. 函数声明类似于var，即会提升到全局作用域或函数作用域的头部；
 3. 函数声明还会提升到所在的块级作用域的头部；
 4. 环境导致的差异过大，避免在块级作用域内声明函数。如果声明，应使用函数表达式形式；
@@ -959,7 +959,7 @@ let obj = {
 obj[key1].name; // '[description]'
 obj[key2].name; // ''
 ```
-## Object.is()
+## Object .is()
 
 ```JavaScript
 Object.is('1', '1');
@@ -2321,3 +2321,1764 @@ const f = () => console.log('now');
 Promise.try(f);
 console.log('later');
 ```
+
+# 遍历器Itreator和for...of循环
+## Iterator概念
+1. js表示“集合”的数据结构有：数组、对象、Map、Set；
+2. 遍历器：一种接口，为各种不同的数据结构提供统一的访问机制；
+3. Iterator作用：a.为各种数据结构提供一个统一的、简便的访问接口；b.使数据结构的成员能够按照某种次序排序；c.供for...of消费；
+4. Iterator遍历过程：a.创建一个指针对象，指向数据结构的起始位置；b.不断调用next方法，直到它指向数据结构的结束位置；
+
+```JavaScript
+var it = idMaker();
+it.next().value;
+it.next().value;
+it.next().value;
+
+function idMaker() {
+    var index = 0;
+    return {
+        next() {
+            return {value: index++, done: false};
+        }
+    }
+}
+```
+## 默认Iterator接口
+1. 默认的Iterator接口部署在数据结构的Symbol.iterator属性；
+
+```JavaScript
+const obj = {
+    [Symbol.iterator]: function() {
+        return {
+            next() {
+                return {value: 1, done: false}
+            }
+        }
+    }
+}
+```
+
+2. 原生具有Iterator接口的数据结构：Array、Map、Set、String、TypedArray、函数的arguments对象、NodeList对象；
+
+```JavaScript
+let arr = ['a', 'b', 'c'];
+let iter = arr[Symbol.iterator]();
+iter.next();
+iter.next();
+iter.next();
+iter.next();
+```
+
+3. 类部署Iterator；
+
+```JavaScript
+class RangeIterator {
+    constructor(start, stop) {
+        this.value = start;
+        this.stop = stop;
+    }
+    
+    [Symbol.iterator]() {
+        return this;
+    }
+    
+    next() {
+        let value = this.value;
+        if(value < this.stop) {
+            this.value++;
+            return {value: value, done: false};
+        }
+        return {value: undefined, done: true};
+    }
+}
+
+function range(start, stop) {
+    return new RangeIterator(start, stop);
+}
+
+for(let v of range(0, 3)) {
+    console.log(v);
+}
+```
+
+4. 遍历器实现指针结构；
+
+```JavaScript
+function Obj(value) {
+    this.value = value;
+    this.next = null;
+}
+
+Obj.prototype[Symbol.iterator] = function() {
+    var iterator = {next: next};
+    var current = this;
+    function next() {
+        if(current) {
+            var value = current.value;
+            current = current.next;
+            return {done: false, value: value};
+        }else {
+            return {done: true};
+        }
+    }
+    return iterator;
+}
+
+var one = new Obj(1);
+var two = new Obj(2);
+var three = new Obj(3);
+
+one.next() = two;
+two.next() = three;
+
+for(let i of one) {
+    console.log(i);
+}
+```
+
+5. 对象添加Iterator接口；
+
+```JavaScript
+let obj = {
+    data: ['hello', 'world'],
+    [Symbol.iterator]() {
+        const self = this;
+        let index = 0;
+        return {
+            next() {
+                if(index < self.data.length) {
+                    return {
+                        value: self.data[index++],
+                        done: false
+                    };
+                }
+                return {value: undefined, done: true};
+            }
+        }
+    }
+}
+```
+
+6. 类似数组（存在数值键名和length属性）部署Iterator接口；
+
+```JavaScript
+let iterable = {
+    length: 2,
+    0: 'aaa',
+    1: 'bbb',
+    [Symbol.iterator]: Array.prototype[Symbol.iterator]
+}
+for(let v of iterable) {
+    console.log(v);
+}
+```
+## 调用Iterator接口的场合
+1. 解构赋值；
+
+```JavaScript
+let s = new Set().add('a').add('b').add('c');
+let [x, y] = s;
+let [a, ...b] = s;
+```
+
+2. 扩展运算符；
+
+```JavaScript
+var str = 'hello';
+[...str];
+var arr = ['a', 'b'];
+['c', ...arr, 'd'];
+```
+
+3. yield*；
+4. 任何接受数组作为参数的场合：for...of、Array.form()、Map()、Set()、WeakMap()、WeakSet()、Promise.all()、Promise.race()；
+## 字符串的Iterator接口
+
+```JavaScript
+var str = 'hello';
+typeof str[Symbol.iterator];
+
+var it = str[Symbol.iterator]();
+it.next();
+
+// 重写Symbol.iterator
+str[Symbol.iterator] = function() {
+    return {
+        next() {
+            if(this._first) {
+                this._first = false;
+                return {value: 'bye', done: false};
+            }
+            return {done: true};
+        },
+        _first: true
+    };
+};
+
+[...str];
+str;
+```
+## Iterator接口与Generator函数
+
+```JavaScript
+let obj = {
+    *[Symbol.iterator] () {
+        yield 'hello';
+        yield 'world';
+    }
+};
+[...obj];
+```
+## 遍历器对象的return()、throw()
+next方法必须部署，return和throw方法可选部署
+## for...of循环
+
+```JavaScript
+// 数组
+var arr = ['a', 'b', 'c'];
+for(let k of arr) {
+    console.log(k);
+}
+
+// Set和Map结构
+var s = new Set().add('a').add('b').add('c');
+var m = new Map().set('a', 1).set('b', 2).set('c', 3);
+for(let k of s) {
+    console.log(s);
+}
+for(let map of m) {
+    console.log(map);
+}
+
+// entries()、keys()、values()
+var arr = ['a', 'b', 'c'];
+for(let k of arr.entries()) {
+    console.log(k);
+}
+
+// 类似数组
+let arrayLike = {
+    length: 2,
+    0: 'a',
+    1: 'b'
+};
+for(let k of arrayLike) {
+    console.log(k); // 报错
+}
+for(let k of Array.from(arrayLike)) {
+    console.log(k);
+}
+
+// 普通对象
+let obj = {
+    name: '张三',
+    age: 18
+};
+for(let k of Object.keys(obj)) {
+    console.log(obj[k]);
+}
+
+```
+遍历方法有:  
+for -- 麻烦  
+forEach -- 无法break或return  
+for...in -- 数组键名是数字，循环使用的是字符串，会遍历其他键名，顺序不定  
+for...of  
+
+# Generator函数
+## 简介
+
+```JavaScript
+function* helloWorldGenerator() {
+    console.log('1');
+    yield 'hello';
+    console.log('2');
+    yield 'world';
+    console.log('3');
+    return 'ending';
+    console.log('4');
+}
+
+var hw = helloWorldGenerator();
+hw.next(); // 1 {value: 'hello', done: false}
+hw.next(); // 2 {value: 'world', done: false}
+hw.next(); // 3 {value: 'ending', done: true}
+hw.next(); // {value: undefined, done: true}
+
+hw[Symbol.iterator]() === hw; // true
+
+// 惰性求值
+function* sum() {
+    yield 222 + 333;
+}
+sum(); // 不求值
+sum().next(); // {value: 555, done: false}
+
+// yield只能用在Generator函数中
+var arr = [1, 2, 3, 4, 5];
+var flat = function* (a) {
+    a.forEach(item => {
+        yield* flat(item);
+    });
+};
+
+[...flat(arr)]; // 报错
+
+// yield用在另一个表达式中，必须放在圆括号内
+function* demo() {
+    console.log('hello' + yield);
+    console.log('hello' + (yield));
+}
+
+// yield用作函数参数或放在赋值表达式的右边可以不加括号
+function* demo() {
+    foo(yield 'a', yield 'b');
+    let input = yield;
+}
+
+// 与Iterator关系
+var obj = {};
+obj[Symbol.iterator] = function* () {
+  yield 1;
+  yield 2;
+  yield 3;
+};
+
+[...obj];
+
+```
+## next方法的参数
+next方法的参数表示上一条yield语句的返回值，所以第一次使用next传参无效。
+```JavaScript
+function* foo(x) {
+    var y = 2 * (yield (x + 1));
+    var z = yield(y / 3);
+    return (x + y + z);
+}
+
+var a = foo(5);
+a.next(); // {value: 6, done: false}
+a.next(); // {value: NaN, done: false}
+a.next(); // {value: NaN, done: true}
+
+var b = foo(5);
+b.next(); // {value: 6, done: false}
+b.next(12); // {value: 8, done: false}
+b.next(9); // {value: 38, done: false}
+```
+## for...of
+
+```JavaScript
+function* foo() {
+    yield 1;
+    yield 2;
+    yield 3;
+    return 4;
+}
+for(let v of foo) {
+    console.log(v); // 1, 2, 3
+}
+[...foo()]; // [1, 2, 3]
+Array.from(foo()); // [1, 2, 3]
+let [x, y] = foo();
+```
+## Generator.prototype.throw()
+
+```JavaScript
+function* g() {
+    try{
+        yield 1;
+    }catch(e) {
+        console.log('内部捕获' + e);
+    }
+};
+
+var i = g();
+i.next();
+try{
+    i.throw('a');
+    i.throw('b');
+    i.throw('c');
+}catch(e) {
+    console.log('外部捕获' + e);
+}
+// 内部捕获a
+// 外部捕获b
+
+i.throw(new Error('出错了'));
+
+// 如果Generator函数部署了try...catch，那么遍历器throw方法抛出错误不影响下一次遍历
+function *gen() {
+    yield 1;
+    yield 2;
+}
+
+var f = gen();
+f.next(); // {value: 1, done: false}
+f.throw(); // Uncaught undefined
+f.next(); // {value: undefined, done: true}
+```
+## Generator.prototype.return()
+返回给定的值，终结Generator函数遍历。
+
+```JavaScript
+function* f() {
+    yield 1;
+    yield 2;
+    yield 3;
+}
+var g = f();
+g.next(); // {value: 1, done: false}
+g.return(); // {value: undefined, done: true}
+g.next(); // {value: undefined, done: true}
+
+// 结合finally, return会推迟到finally之后执行
+function* foo() {
+    try{
+        yield 1;
+        yield 2;
+    } finally {
+        yield 3;
+        yield 4;
+    }
+    
+}
+var f = foo();
+f.next(); // {value: 1, done: false}
+f.return('a'); // {value: 3, done: false}
+f.next(); // {value: 4, done: false}
+f.next(); // {value: 'a', done: true}
+```
+## yield*表达式
+Generator函数内部调用另一个Generator函数
+
+```JavaScript
+function* bar() {
+    yield 1;
+    yield 2;
+}
+function* foo() {
+    yield 1;
+    bar();
+    yield bar();
+    yield* bar();
+    yield 2;
+}
+[...foo()];
+
+// 只要是有Iterator接口的数据结构，就能被yield*遍历
+function* foo() {
+    yield 'aaa';
+    yield* 'bbb';
+}
+[...foo()]; // ['aaa', 'b', 'b', 'b']
+
+// 被代理的Generator使用return，向代理它的Generator函数返回数据
+function* bar() {
+    yield 1;
+    yield 2;
+    return 'aaa';
+}
+function* foo() {
+    yield 1;
+    var str = yield* bar();
+    yield 2;
+    console.log(str);
+}
+[...foo()];
+
+// 取出嵌套数组的所有成员
+function* iterTree(tree) {
+    if(Array.isArray(tree)) {
+        for(let i = 0; i < tree.length; i++) {
+            yield* iterTree(tree[i]);
+        }
+    }else {
+        yield tree;
+    }
+}
+
+const tree = ['a', ['b', 'c'], ['d', 'e', ['f']]];
+[...iterTree(tree)]; // ['a', 'b', 'c', 'd', 'e', 'f']
+
+// 遍历完全二叉树
+function Tree(left, label, right) {
+    this.left = left;
+    this.label = label;
+    this.right = right;
+}
+
+function* inorder(t) {
+    if(t) {
+        yield* inorder(t.left);
+        yield t.label;
+        yield* inorder(t.right);
+    }
+}
+
+function make(tree) {
+    if(tree.length === 1) {
+        return new Tree(null, tree[0], null);
+    }
+    return new Tree(make(tree[0]), tree[1], make(tree[2]));
+}
+
+let tree = make([['a'], 'b', ['c'], [['d']], ['e']]);
+var result = [];
+for(let v of inorder(tree)) {
+    result.push(v);
+}
+result;
+```
+## 作为对象属性的Generator函数
+
+```JavaScript
+var obj = {
+    *g() {...}
+};
+```
+## Generator函数与this
+
+```JavaScript
+// Generator函数总是返回遍历器对象，而不是this
+function* f() {
+    this.a = 11;
+}
+let f = f();
+f.a; // undefined
+
+// Generator函数不能使用new
+function* F() {
+    this.x = 2;
+}
+new F();
+
+// 改造，使其能获取this属性，也能new
+function* f() {
+    this.a = 1;
+    yield this.b = 2;
+    yield this.c = 3;
+}
+
+function F() {
+    return f.call(f.prototype);
+}
+
+var f = new F();
+f.next(); // {value: 2, done: false}
+f.next(); // {value: 3, done: false}
+f.next(); // {value: undefined, done: true}
+f.a; // 1
+f.b; // 2
+f.c; // 3
+```
+## Generator状态机
+
+```JavaScript
+function* clock() {
+    while(true) {
+        console.log('Tick!');
+        yield;
+        console.log('Tock!');
+        yield;
+    }
+}
+```
+## 应用
+1. 异步操作的同步化表达；
+2. 控制流管理；
+3. 部署Iterator接口；
+4. 所为数据结构；
+
+# Generator函数的异步应用
+## 传统方法
+1. 回调函数；
+2. 事件监听；
+3. 发布/订阅；
+4. Promise对象；
+## Thunk函数
+1. 求值策略：函数的参数到底应该在何时求值，分为传值调用，传名调用；
+2. Thunk函数：传名调用时将参数放到一个临时函数之中，再将这个临时函数传入函数体；
+
+```JavaScript
+function f(m) {
+    return m + 2;
+}
+
+f(x + 5);
+// 等同于
+var thunk = function() {
+    return x + 5;
+}
+
+f(thunk) {
+    return thunk() + 2;
+}
+```
+
+3. Thunkify模块;
+4. Thunk函数的自动流程管理；
+
+```JavaScript
+function run(fn) {
+    var gen = fn();
+    function next(err, data) {
+        var result = gen.next(data);
+        if(result.done) return;
+        result.value(next);
+    }
+    
+    next();
+}
+
+function* g() {...};
+
+run(g);
+```
+## [co模块](github.com/tj/co)
+用于Generator函数的自动执行。
+
+# async函数
+## 含义
+1. async是什么？用一句话来说，它就是Generator的语法糖；
+2. async函数就是将Generator函数的星号替换为async，yield替换为await；
+3. 优点：a.自带执行器；b.更好的语义；c.更广的适用性；d.返回值是Promise；
+## 用法
+1. async函数返回的是一个Promise对象，可以使用then方法添加回调函数；
+
+```JavaScript
+function async print(value, ms) {
+    await timeout(ms);
+    console.log(value);
+}
+
+function timeout(ms) {
+    return new Promise(resolve => {
+        setTimeout(resolve, ms);
+    })
+}
+
+print('hello async', 5000);
+```
+
+2. async函数多种使用形式；
+
+```JavaScript
+// 函数声明
+async function foo() {};
+
+// 函数表达式
+const foo = async function() {};
+
+// 对象的方法
+let obj = {
+    async foo() {}
+};
+obj.foo().then(...);
+
+// class方法
+class Storage {
+    constructor() {
+        this.cachePromise = cache.open('avatars');
+    }
+    
+    async getAvatar(name) {
+        const cache = await this.cachePromise;
+        return cache.match(`/avatars/${name}.jpg`);
+    }
+}
+
+const storage = new Storage();
+stroage.getAvatar('jack').then(...);
+
+// 箭头函数
+const foo = async () => {};
+```
+## 语法
+1. 返回Promise对象；
+
+```JavaScript
+// return值成为then回调参数
+async function foo() {
+    return 'aaa';
+}
+foo().then(v => console.log(v));
+
+// throw捕获
+async function foo() {
+    throw new Error('出错了');
+}
+
+foo().then(
+    v => console.log(v), 
+    e => console.log(e)
+);
+```
+
+2. Promise对象的状态变化：只有async函数内部的异步操作执行完，才会执行then；
+## await命令
+1. await后面是一个Promis对象，如果不是，会被转为一个立即resolve的Promise对象；
+
+```JavaScript
+async function f() {
+    return await 111;
+}
+f().then(res => console.log(res));
+```
+
+2. await后面的Promis对象变为reject状态，则reject的参数会被catch方法的回调函数接收；
+
+```JavaScript
+async function foo() {
+    await Promise.reject('出错了');
+    await Promise.resolve('aaa'); // 不会执行
+}
+foo().then(v => console.log(v)).catch(e => console.log(e));
+
+// 使异步操作不影响下一步执行
+async function f() {
+    try {
+        await Promise.reject('出错了');
+    }catch(e) {
+        
+    }
+    return await Promise.resolve('hello');
+}
+f().then(v => console.log(v)).catch(e => console.log(e));
+
+async function f() {
+    await Promise.reject('出错了').catch(e => console.log(e));
+    return await Promise.resolve('hello');
+}
+f().then(v => console.log(v)).catch(e => console.log(e));
+```
+3. 将多条await命令，统一放在try...catch结构中；
+## 使用注意点
+1. await命令后面的Promise对象运行结果可能是reject，所以最好把await命令都放在try...catch结构中；
+2. 多条await命令后面的异步操作如果不存在继发关系，最好让它们同时触发；
+
+```JavaScript
+// 写法一
+let [foo, bar] = await Promise.all([getFoo(), getBar()]);
+// 写法二
+let fooPromise = getFoo();
+let barPromise = getBar();
+let foo = await fooPromise;
+let bar = await barPromise;
+```
+
+3. await命令只能在async函数中，否则会报错；
+## async函数的实现原理
+原理是将Generator函数和自动执行器包装在一个函数里；
+
+```JavaScript
+async function fn(args) {
+    ...
+}
+// 等同于
+function fn(args) {
+    return spawn(function* () {
+        ...
+    });
+}
+
+function spawn(genF) {
+    return new Promise(function(resolve, reject) {
+        var gen = genF();
+        function step(nextF) {
+            try {
+                var next = nextF();
+            }catch(e) {
+                return reject(e);
+            }
+            if(next.done) {
+                return resolve(next.value);
+            }
+            Promise.resolve(next.value).then(function(v) {
+               step(function() {
+                   return gen.next(v);
+               });
+            }, function(e) {
+                step(function() {
+                    return gen.throw(e);
+                });
+            });
+        }
+        step(function () {
+            return gen.next(undefined);
+        });
+    });
+}
+```
+## async函数的顺序执行和并发执行
+
+```JavaScript
+// 顺序执行动画
+async function chainAnimationsAsync(elem, animations) {
+    let ret = null;
+    try{
+        for(let ani of animations) {
+            ret = await ani(elem);
+        }
+    }catch(e) {
+        // 忽略错误
+    }
+    return ret;
+}
+// 顺序读取一组url
+async function logInOrder(urls) {
+    for(let url of urls) {
+        const response = await fetch(url);
+        console.log(response.text())
+    }
+}
+// 并发读取一组url
+async function loginInOrder(urls) {
+    const textPromises = urls.map(async url => {
+        const response = await fetch(url);
+        return response.text();
+    });
+    
+    for(let text of textPromises) {
+        console.log(await textPromises);
+    }
+}
+```
+## 异步遍历器（提案）
+语法特点：遍历器的next方法返回的是一个Promise对象
+1. for await...of
+
+```JavaScript
+async function f() {
+    for await (const x of createAsyncIterator(['a', 'b'])) {
+        console.log(x);
+    }
+}
+
+(async function () {
+    for await (let x of ['a', 'b']) {
+        console.log(x);
+    }
+})();
+```
+2. 异步Generator函数
+
+```JavaScript
+async function* f() {
+    yield 'hello';
+}
+const f = f();
+f.next().then(res => console.log(res));
+```
+
+3. yield*语句与一个异步遍历器一同使用
+
+```JavaScript
+async function* f() {
+    yield 'a';
+    yield 'b';
+    return 'c';
+}
+
+async function* gen() {
+    const result = yield* f();
+}
+```
+# Class的基本用法
+## 简介
+1. 类完全可以看作构造函数的另一种写法；
+
+```JavaScript
+class Point {
+    ...
+}
+typeof Point; // 'function'
+Point === Point.prototype.constructor; // true
+new Point()
+```
+
+2. 类的所有方法都定义在prototype上；
+3. Object.assign一次向类添加多个方法；
+
+```JavaScript
+class Point {
+    constructor() {
+        ...
+    }    
+}
+Object.assign(Point.prototype, {
+   toString() {};
+   toValue() {};
+});
+```
+
+4. 和ES5不同，类内部的方法不可枚举；
+5. 类的属性名可以采用表达式；
+
+```JavaScript
+let methodName = 'getArea';
+class Square {
+    constructor() {
+        ...
+    }
+    
+    [methodName]() {
+        ...
+    }
+}
+```
+## 严格模式
+类和模块内部默认使用严格模式；
+## constructor方法
+1. 如果没有显示定义，会默认生成；
+2. 默认返回实例对象this，不过可以指定返回另一个对象；
+
+```JavaScript
+class Foo {
+    constructor() {
+        return Object.create(null);
+    }
+}
+new Foo() instanceof Foo; // false
+```
+
+3. 必须使用new，否则报错，普通构造函数不报错；
+## 类的实例对象
+1. 实例的属性除非显式定义在this上，否则都是定义在原型上；
+2. 类的所有实例共享一个原型对象；
+## class表达式
+1. 使用表达式的形式定义类；
+
+```JavaScript
+const myclass = class Foo {
+    getClassName() {
+        return Foo.name;
+    }
+} // myclass是类的名字，Foo只在class内部使用，指代当前类
+```
+
+2. 立即执行的Class;
+
+```JavaScript
+let person = new class {
+    ...
+}(param)
+```
+## 类不存在变量提升
+## 私有方法的实现
+1. 命名上约定，如_foo；
+2. 将私有方法移出模块；
+
+```JavaScript
+class widget {
+    foo(baz) {
+        bar.call(this, baz);
+    }
+}
+
+function bar(baz) {
+    ...    
+}
+```
+
+3. Symbol命名；
+
+```JavaScript
+const bar = Symbol('bar');
+const baz = Symbol('baz');
+class Point {
+    // 公有方法
+    foo(name) {
+        this[bar](name);
+    }
+    // 私有方法
+    [bar](name) {
+        return this[baz] = name;
+    }
+}
+```
+## 私有属性（#）提案
+## this指向
+将方法提取出来单独使用，this会指向该方法运行时所在的环境，解决方法：
+1. 构造函数中绑定this；
+
+```JavaScript
+class Foo {
+    constructor() {
+        this.sayName = this.sayName.bind(this);
+    }
+}
+```
+
+2. 使用箭头函数；
+
+```JavaScript
+class Foo {
+    constructor() {
+        this.sayName = (name = 'there') => {
+            this.print(`Hello${name}`);
+        }
+    }
+}
+```
+
+3. 使用Proxy，在获取方法绑定this；
+## name总是返回紧跟在class后面的类名；
+## getter和setter
+## 静态方法
+1. 在一个方法前面加上static，表示该方法不会被实例继承，直接通过类调用：
+
+```JavaScript
+class Foo {
+    static say() {
+        console.log('hello');
+    }
+}
+const f = new Foo();
+f.say();
+Foo.say();
+```
+2. 静态方法可以被子类继承；
+
+```JavaScript
+class Foo {
+    static say() {
+        console.log('hello');
+    }
+}
+
+class Bar extends Foo {};
+
+Bar.say();
+```
+
+3. 从super对象调用；
+## class静态属性和实例属性
+1. 当前静态属性定义；
+
+```JavaScript
+class Foo {}
+Foo.prop = 1;
+Foo.prop; // 1
+```
+2. 提案；
+## new.target属性
+用于确定构造韩式是怎么调用的，只能在构造函数内部使用；  
+不能独立使用，只能继承后才能使用的类；
+
+```JavaScript
+class Shape {
+    constructor() {
+        if(new.target === Shape) {
+            throw new Error('本类只能继承使用');
+        }
+    }
+}
+
+class Rectangle extends Shape {
+    constructor() {
+        super();
+    }
+}
+
+new Shape();
+new Rectangle();
+```
+# class的继承
+## 简介
+class使用extends实现继承；子类没有自己的this对象，因此必须在constructor中调用super方法；继承的实质是先创建父类的实例对象this，然后再用子类的构造函数修改this。
+
+```JavaScript
+class Point {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+    }
+}
+
+class ColorPoint {
+    constructor(x, y, color) {
+        this.color = color; // 报错
+        super(x, y);
+        this.color = color; // 不报错
+    }
+}
+
+let cp = new ColorPoint(23, 4, 'red');
+cp instanceof Point; // true
+cp instanceof ColorPoint; // true
+```
+## Object.getPrototypeOf()
+从子类上获取父类
+
+```JavaScript
+Object.getPrototypeOf(ColorPoint) === Point; // true
+```
+## super关键字
+1. super作为函数调用时代表父类的构造函数，只能用在子类构造函数中，否则报错；
+
+```JavaScript
+class A {
+    constructor() {
+        console.log(new.target.name);
+    }
+}
+
+class B extends A {
+    constructor() {
+        super();
+    }
+    m() {
+        super(); // 报错
+    }
+}
+
+new A(); // A
+new B(); // B
+```
+
+2. super作为对象时再普通方法中指向父类的原型对象；
+
+```JavaScript
+class A {
+    constructor() {
+        this.q = 21;
+    }
+    p() {
+        return 2;
+    }
+}
+A.prototype.x = 22;
+
+class B extends A {
+    constructor() {
+        super();
+        console.log(super.x);
+        console.log(super.p());
+    }
+    
+    get m() {
+        return super.q;
+    }
+}
+
+let b = new B(); // 2
+b.m; // undefined
+// super指向父类的原型对象，定义在父亲实例上的方法或属性无法通过super调用
+
+```
+3. super调用父类的方法时，super会绑定子类的this;
+
+```JavaScript
+class A {
+    constructor() {
+        this.x = 1;
+    }
+    print() {
+        console.log(this.x);
+    }
+}
+
+class B extends A {
+    constructor() {
+        super();
+        this.x = 2;
+    }
+    m() {
+        super.print();
+    }
+}
+
+let b = new B();
+b.m(); // 2
+```
+3. 通过super对某个属性赋值，这时super就是this，赋值的属性会变成子类实例的属性；
+
+```JavaScript
+class A {
+    constructor() {
+        this.x = 1;
+    }
+    print() {
+        console.log(this.x);
+    }
+}
+
+class B extends A {
+    constructor() {
+        super();
+        this.x = 2;
+        super.x = 3;
+    }
+    m() {
+        super.print();
+    }
+}
+
+let b = new B();
+b.m();  // 3
+```
+4. super作为对象用在静态方法中，super指向父类而不是父类的原型对象；
+
+```JavaScript
+class A {
+    static method(name) {
+        console.log('static' + name);
+    }
+    
+    method(name) {
+        console.log('instance' + name);
+    }
+}
+
+class B extends A {
+    static method(name) {
+        super.method(name);
+    }
+    
+    method(name) {
+        super.method(name);
+    }
+}
+
+B.method('张三'); // 'static张三'
+let b = new B();
+b.method('张三')；// 'instance张三'
+```
+## 类的prototype属性和__proto__属性
+1. 两条继承链：子类的__proto__属性表示构造函数的继承，总是指向父类；子类prototype属性的__proto__属性表示方法的继承，总是指向父类的prototype属性；
+
+```JavaScript
+class A {}
+class B extends A {}
+
+B.__proto__ === A; // true
+B.prototype.__proto__ === A.prototype; // true
+// 作为一个对象，子类的原型是父类；作为一个构造函数，
+Object.setPrototypeOf(B.prototype, A.prototype);
+// 等同于
+B.prototype.__proto__ = A.prototype;
+
+Object.setPrototypeOf(B, A);
+// 等同于
+B.__proto__ = A;
+
+Object.create(A.prototype);
+// 等同于
+B.prototype.__proto__ = A.prototype;
+```
+2. 子类继承多种类型的值；
+
+```JavaScript
+// 子类继承对象
+class A extends Object {}
+
+A.__proto__ === Object;
+A.prototype.__proto__ === Object.prototype;
+
+// 不存在任何继承
+class A {}
+
+A.__proto__ === Function.prototype;
+A.prototype.__proto__ === Object.prototype;
+
+// 子类继承null
+class A extends null {}
+
+A.__proto__ === Function.prototype;
+A.prototype.__proto__ === undefined;
+```
+3. 子类的原型的原型是父类的原型（__proto__.__proto__）；
+## 原生构造函数的继承
+原生构造函数：Boolean()、Number()、String()、Array()、Date()、Function()、RegExp()、Error()、Object()；  
+继承Object子类的差异行为；
+## mix模式的实现
+
+```JavaScript
+function mix(...mixins) {
+    class Mix();
+    
+    for(let mixin of mixins) {
+        copyProperties(Mix, mixin);
+        copyProperties(Mix.prototype, mixin.prototype);
+    }
+    
+    return Mix;
+}
+
+function copyProperties(target, source) {
+    for(let key of Reflect.ownKeys(source)) {
+        if(key !== 'constructor' && key !== 'prototype' && key !== 'name') {
+            let desc = Object.getOwnPropertyDescroptor(source, key);
+            Object.defineProperty(target, key, desc);
+        }
+    }
+}
+
+// 将多个对象合并为一个类
+class DistributedEdit extends mix(A, B) {
+    
+}
+```
+# 修饰器
+## 类的修饰
+
+```JavaScript
+@descriptor
+class A {
+    
+}
+// 等同于
+class A {}
+A = descriptor(A) || A;
+// 第一个参数就是所要修饰的目标类
+function descriptor(target) {
+    // ...
+}
+// 多个参数
+function method(a, b, c) {
+    return function(target) {}
+}
+```
+## 方法的修饰
+
+```JavaScript
+class P {
+    @readonly
+    name() {
+        return '张三';
+    }
+}
+
+// 修饰器函数接受三个参数
+function readonly(target, name, descriptor) {
+    descriptor.writable = false;
+    return descriptor;
+}
+readonly(P.prototype, 'name', descriptor);
+// 类似于
+Object.defineProperty(P.prototype, 'name', descriptor);
+```
+多个修饰器，先从外到内进入修饰器，然后由内向外执行
+
+```JavaScript
+function dec(id) {
+    console.log('evaluated', id);
+    return (target, name, descriptor) => console.log('ex', id);
+}
+
+class Example {
+    @dec(1)
+    @dec(2)
+    method() {
+        
+    }
+}
+// evaluated 1
+// evaluated 2
+// ex 2
+// ex 1
+```
+函数不能使用修饰器，原因是存在函数提升
+## 常见修饰器[core-decorators.js](https://github.com/jayphelps/core-decorators)
+## 自动发布事件[Postal.js](https://github.com/postaljs/postal.js)
+## 混入[Trait](https://github.com/CocktailJs/traits-decorator)
+# Module的语法
+## 概述
+1. ES6之前模块加载方案有CommonJS和AMD，前者用于服务器，后者用于浏览器，都在运行时确定模块的依赖关系，以及输入和输出的变量；
+2. ES6的设计思想是尽量静态化，在编译时就能确定模块的依赖关系，以及输入和输出的变量；
+## 模块自动采用严格模式
+1. 变量必须声明后使用；
+2. 函数的参数不能有同名参数，否则报错；
+3. 不能使用with语句；
+4. 不能对只读属性赋值，否则报错；
+5. 不能使用前缀0表示八进制数，否则报错；
+6. 不能删除不可删除的属性，否则报错；
+7. 不能删除变量delete prop，会报错，只能删除属性delete global[prop]；
+8. eval不会在它的外层作用域引入变量；
+9. eval和arguments不能被重新赋值；
+10. arguments不会自动反映函数参数的变化；
+11. 不能使用arguments.callee；
+12. 不能使用arguments.caller；
+13. 禁止this指向全局变量；
+14. 不能使用fn.caller和fn.arguments获取函数调用的堆栈；
+15. 增加了保留字（protected、static和interface）。
+
+## export命令
+用于规定模块的对外接口。
+
+```JavaScript
+// 输出变量，函数或类
+var name = '张三';
+var age = 12;
+function sayName() {
+    console.log(name);
+}
+
+export {name, age, sayName};
+
+// as 重命名
+export {sayName as xxx};
+
+// export规定的是对外的接口，必须与模块内部的变量一一对应
+// 报错
+export 1; 
+// 报错
+var m = 1;
+export m;
+// 报错
+function f() {}
+export f;
+// 写法一
+export var m = 1;
+// 写法二
+var m = 1;
+export {m};
+// 写法三
+var m = 1;
+export { m as n };
+
+// export是动态绑定关系，可以取到模块内部实时的值
+export var foo = 'baz';
+setTimeour({} => foo = 'bar', 500);
+```
+## import命令
+用于输入其他模块提供的功能。
+```JavaScript
+// 变量名必须与被导入模块对外接口的名称相同
+import {a, b, c} from '...';
+
+// as重新命名
+import {a as aa} from '...';
+
+// import命令具有提升效果，会提升到头部首先执行
+foo();
+import {foo} from '...';
+
+// import是静态执行，所以不能使用表达式和变量或if结构
+import {'f' + 'oo'} from '...';
+
+var name = 'foo';
+import {name} from '...';
+
+if(true) {
+    import {foo} from '...';
+}
+```
+## 模块的整体加载
+
+```JavaScript
+import {a, b, c} from '...';
+// 等价于
+import * as foo from '...';
+foo.a;
+foo.b;
+foo.c;
+// 不允许运行时改变
+foo.a = 'aaa'; // 不允许
+```
+## export default命令
+为模块指定默认输出
+
+```JavaScript
+export default function foo() {}
+// 等价于
+export default function() {}
+
+// 默认输出
+export default function a() {}
+import a from '...';
+// 正常输出(带大括号)
+export function a() {};
+import {a} from '...';
+
+// export default输出一个叫default的变量，所以后面不能跟变量声明语句
+export default var a = 1; // 错误
+export default 42; // 正确
+
+// 一条import语句同时输入默认方法和其他接口
+import _, {each} from '...'
+
+// 输出类
+export default class {...}
+```
+## export和import复合写法
+
+```JavaScript
+export {foo, baz} from '...';
+// 等价于
+import {foo, baz} from '...';
+export {foo, baz};
+
+// 接口改名
+export {foo as myFoo} from '...';
+
+// 整体输出
+export * from '...';
+
+// 默认接口
+export {default} from '...';
+
+// 具名改默认
+export {es6 as default} from '...';
+
+// 默认改具名
+export {default as es6} form '...';
+```
+## 跨模块常量
+const声明的常量只在当前的代码块内有效。
+
+```JavaScript
+// a.js
+export const A = 1;
+export const B = 2;
+// b.js
+import * as constants from 'a.js';
+constants.A;
+constants.B;
+// c.js
+import {A, B} from 'a.js';
+A;
+B;
+```
+## import()提案，实现运行时加载
+1. 按需加载；
+2. 条件加载；
+3. 动态的模块路径；
+
+```JavaScript
+import(url).then((a,b) => {...});
+```
+# Module的加载实现
+## 浏览器加载
+1. defer和async异步加载js脚本；
+2. type="module"渲染完再执行模块脚本，等同于defer；
+
+```JavaScript
+// 外部加载
+<script type="module" src="url"></script>
+// 内嵌
+<script type="module">
+    import util from url;
+    ...
+</script>
+```
+
+## ES6模块与CommonJS的差异
+1. CommonJS模块输出的是一个值的复制，ES6模块输出的是值的引用；
+2. CommonJS是运行时加载，ES6模块是编译时输出接口；
+## Node加载
+ES6模块和CommonJS采用各自的加载方案。
+
+```JavaScript
+// 不输出任何接口，但是希望被Node认为是ES6模块
+export {};
+```
+ES6模块中顶层的this指向undefined，CommonJS顶层this指向当前模块。
+1. import命令加载CommonJS模块；
+2. require命令加载ES6模块
+3. CommonJS模块的循环加载；
+4. ES6模块的循环加载；
+
+## ES6模块的转码
+1. [ES6 module transpiler](https://github.com/esnext/es6-module-transpiler)
+2. [System.JS](https://github.com/systemjs/systemjs)
+
+# 编程风格
+## 块级作用域
+1. let取代var；
+2. const优于let；
+
+## 字符串
+1. 静态字符串一律使用单引号或反引号；
+2. 动态字符串使用反引号；
+
+## 解构赋值
+1. 使用数组成员对变量赋值，优先使用解构赋值；
+2. 函数的参数是对象的成员，优先使用解构赋值；
+3. 函数返回多个值，优先使用对象的解构赋值，而不是数组的解构赋值；
+
+## 对象
+1. 单行定义的对象，最后一个成员不以逗号结尾，多行定义的对象，最后一个成员以逗号结尾；
+2. 对象尽量静态化，一旦定义不得随意添加新的属性；
+3. 如果对象的属性名是动态的，可以在创造对象的时候使用属性表达式定义；
+4. 对象的属性和方法尽量采用简洁表达法；
+
+## 数组
+1. 使用扩展运算符（...）复制数组；
+2. 使用Array.from方法将类似数组的对象转为数组；
+
+## 函数
+1. 立即执行的函数写成箭头函数的形式；
+2. 简单的、单行的、不会复用的函数，尽量使用箭头函数；
+3. 不要再函数体内使用arguments变量，尽量使用rest运算符(...)代替；
+4. 使用默认值语法设置函数参数的默认值；
+
+## Map结构
+注意区分Object和Map，只有模拟实体对象时才使用Object。
+
+## Class
+1. 总是用class取代需要prototype的操作；
+2. 使用extends实现继承，简单，不破坏instanceof预算；
+
+## Module
+1. 使用import取代require的代码；
+2. 使用export取代module.exports；
+3. 模块只有一个输出值使用export default，不同时使用default和普通export；
+4. 模块默认输出一个函数，函数首字母小写；
+5. 模块默认输出一个对象，对象名首字母大写；
+
+## ESLint使用
+保证代码语法正确、风格统一。
+
+# ECMAScript规格
+规格文件是计算机语言的官方标准，详细描述了语法规则和实现方法。
+[官方网站](http://www.ecma-international.org/ecma-262/)
+
+# ArrayBuffer
+## ArrayBuffer对象
+1. ArrayBuffer对象代表存储二进制数据的一段内存，不能直接读/写；
+2. ArrayBuffer也是一个构造函数，分配一段可以存放数据的连续内存区域；
+
+```JavaScript
+// 参数为内存大小
+var buf = new ArrayBuffer(32); 
+var dataView = new DataView(buf);
+dataView.getUint8(0); // 0
+```
+
+3. DataView是为了读/写这段内存的视图，数组成员都是同一个数据类型；
+4. 一个内存上的多个视图会互相影响；
+5. TypeArray视图是一组构造函数，可以接受普通数组作为参数；
+
+```JavaScript
+var ta = new Uint8Array([0, 1, 2]);
+ta.length; // 3
+ta[0] = 5; // 0
+ta; [5, 1, 2]
+```
+
+6. byteLength属性返回分配内存区域的字节长度，分配内存的时候可能分配失败；
+
+```JavaScript
+var bf = new ArrayBuffer(32);
+bf.byteLength;
+```
+7. slice方法复制ArrayBuffer对象，两个参数分别是开始和截止的字节序号；
+8. isView方法判断参数是否为ArrayBuffer的视图实例；
+## TypedArray视图
+1. 数组成员可以是不同类型，9种视图类型；
+2. TypedArray数组只是一层视图，本身不存储数据；
+3. TypedArray数组提供9种构造函数，用于生成数组实例，参数可以是成员数量，另一个TypedArray实例或者普通数组；
+4. 普通数组的操作方法和属性对TypedArray完全使用，除了concat；
+5. 字节序指的是数值在内存中的表示方式，分为小端字节序和大端字节序；
+6. BYTES_PER_ELEMENT属性表示该数据类型占据的字节数；
+7. ArrayBuffer与字符串的互相转换；
+
+```JavaScript
+// ArrayBuffer转字符串
+String.fromCharCode.apply(null, new Uint16Array(buf));
+
+// 字符串转ArrayBuffer
+let buf = new ArrayBuffer(str.length * 2); // 每个字符占用2个字节
+let bufView = new Uint16Array(buf);
+for(let i = 0, strLen = str.length; i < strLen; i ++) {
+    bufView[i] = str.charCodeAt(i);
+}
+return buf;
+```
+
+8. TypedArray溢出分为正向溢出和负向溢出；
+9. TypedArray实例的buffer属性返回内存对应的ArrayBuffer对象，只读；
+10. byteLength属性返回内存长度，单位为字节，byteOffset属性返回该TypedArray数组从底层ArrayBuffer对象的哪个字节开始，只读；
+11. length返回数组含有多少个成员；
+12. set方法用于复制数组；
+13. subarray方法用于复制数组的一部分建立一个新的视图；
+14. slice方法返回一个指定位置的新的TypedArray实例；
+15. of方法将参数转为一个TypedArray实例；
+16. from方法接受一个可遍历的数组结构作为参数，返回一个基于此结构的TypedArray实例；
+## 复合视图
+同一段内存中可以依次存放不同类型的数据。
+## DataView视图
+用于操作多种类型的数据。
+
+```JavaScript
+var buffer = new ArrayBuffer(24);
+var dv = new DataView(buffer);
+```
+属性：  
+buffer：返回队友ArrayBuffer对象；  
+byteLength：返回占据的内存字节长度；  
+buteOffset：返回视图从对应的ArrayBuffer对象的哪个字节开始。  
+  
+8个读取内存的方法：getInt8、getUint8、getInt16、getUint16、getInt32、getUint32、getFloat32、getFloat64
+  
+get方法默认大端字节序解读数据，指定第二个参数true使用小端字节序。
+
+```JavaScript
+var v1 = dv.get(1, true); // 小端字节序
+var v2 = dv.get(3, false); // 大端字节序
+var v3 = dv.get(5); // 大端字节序
+```
+
+8个写入内存的方法：setInt8、setUint8、setInt16、setUint16、setInt32、setUint32、setFloat32、setFloat64  
+   
+set方法默认大端字节序解读数据，指定第三个参数true使用小端字节序，第一个参数表示从哪个字节写入，第二个参数为写入的数据。
+
+```JavaScript
+dv.setInt32(1, 25, true); // 小端字节序
+dv.setInt32(3, 22, false); // 大端字节序
+dv.setInt32(5, 30); // 大端字节序
+```
+## 二进制数组的应用
+1. AJAX；
+2. Canvas；
+3. WebSocket；
+4. Fetch API；
+5. File API；
+## sharedArrayBuffer
+允许Worker线程与主线程共享同一块内存。
+```JavaScript
+// 新建1kb的共享内存
+var shareBuffer = new sharedArrayBuffer(1024);
+// 主线程
+var w = new Work('mywork.js');
+// 主线程将共享内存的地址发送出去
+w.postMessage(shareBuffer);
+// 在内存上建立视图，供写入数据
+const sharedArray = new Int32Array(shareBuffer);
+w.onmessage = function(ev) {
+    console.log(ev.data); // 主线程共享的数据
+}
+```
+## Atomics
+保证所有共享内存的操作都是“原子性”的，并且可以在所有线程内同步；
+
+```JavaScript
+// 主线程
+var sab = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * 100000);
+var ia = new Int32Array(sab);
+
+for(let i = 0; i< ia.length; i++) {
+    ia[i] = primes.next(); // 存入质数
+}
+
+// worker线程
+ia[112] ++; //错误
+Atomics.add(ia, 112, 1); // 正确
+```
+方法：
+1. 读取数据：Atomics.load(array, index);
+2. 写入数据：Atomics.store(array, index, value);
+3. 锁内存：Atomics.wait(sharedArray, index, value, item);
+4. 解除锁：Atomics.wake(sharedArray, index, count);
+5. 运算方法：   
+        添加：Atomics.add(sharedArray, index, value);
+        减去：Atomics.sub(sharedArray, index, value);
+   位运算and：Atomics.and(sharedArray, index, value);
+    位运算or：Atmoics.or(sharedArray, index, value);
+   位运算xor：Atmoics.xor(sharedArray, index, value);
+6. 替换：Atomics.compareExchange(sharedArray, index, oldval, newval);
+7. 设置指定下标的值：Atomics.exchange(sharedArray, index, value);
+8. 返回对象是否可以处理某个size的内存锁定：Atomics.isLockFree(size);
